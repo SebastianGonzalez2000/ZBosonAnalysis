@@ -107,25 +107,45 @@ def read_file(path, sample):
         fail = data[np.vectorize(ZBosonCuts.cut_lep_n)(data.lep_n)].index
         data.drop(fail, inplace=True)
 
-        # Cut on pseudorapidity outside fiducial region
-        fail = data[np.vectorize(ZBosonCuts.cut_lep_eta_fiducial)(data.lep_eta)].index
+        # Cut on oppositely charged leptons
+        fail = data[np.vectorize(ZBosonCuts.cut_opposite_charge)(data.lep_charge)].index
         data.drop(fail, inplace=True)
 
-        # Cut on pseudorapidity inside barrel/end-cap transition region
-        fail = data[np.vectorize(ZBosonCuts.cut_lep_eta_transition)(data.lep_eta)].index
-        data.drop(fail, inplace=True)
-
-        # Cut on transverse momentum of the photons
-        fail = data[np.vectorize(ZBosonCuts.cut_lep_pt)(data.lep_pt)].index
+        # Cut on leptons of same flavour
+        fail = data[np.vectorize(ZBosonCuts.cut_same_flavour)(data.lep_type)].index
         data.drop(fail, inplace=True)
 
         # Cut on lepton reconstruction
         fail = data[np.vectorize(ZBosonCuts.cut_lep_reconstruction)(data.lep_isTightID)].index
         data.drop(fail, inplace=True)
 
-        # Cut on energy isolation
-        fail = data[np.vectorize(ZBosonCuts.cut_isolation_et)(data.lep_etcone20)].index
+        # Cut on transverse momentum of the photons
+        fail = data[np.vectorize(ZBosonCuts.cut_lep_pt)(data.lep_pt)].index
         data.drop(fail, inplace=True)
+
+        # Cut on ptcone30 isolation of leptons
+        fail = data[np.vectorize(ZBosonCuts.cut_lep_isolation_ptcone30)(data.lep_ptcone30, data.lep_pt)].index
+        data.drop(fail, inplace=True)
+
+        # Cut on etcone20 isolation of leptons
+        fail = data[np.vectorize(ZBosonCuts.cut_lep_isolation_etcone20)(data.lep_etcone20, data.lep_pt)].index
+        data.drop(fail, inplace=True)
+
+        # Cut on electron pseudorapidity outside fiducial region
+        fail = data[np.vectorize(ZBosonCuts.cut_electron_eta_fiducial)(data.lep_eta, data.lep_type)].index
+        data.drop(fail, inplace=True)
+
+        # Cut on muon pseudorapidity outside fiducial region
+        fail = data[np.vectorize(ZBosonCuts.cut_muon_eta_fiducial)(data.lep_eta, data.lep_type)].index
+        data.drop(fail, inplace=True)
+
+
+        ## TODO: Implement these two final cuts
+        #Cut on trackd0pvunbiased for electrons
+        # Cut on trackd0pvunbiased for muons
+
+
+
 
         # Cut on lower limit of reconstructed invariant mass
         # TODO: does data.mll work?
