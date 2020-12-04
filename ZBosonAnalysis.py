@@ -145,8 +145,6 @@ def read_file(path, sample):
         # Cut on trackd0pvunbiased for muons
 
 
-
-
         # Cut on lower limit of reconstructed invariant mass
         # TODO: does data.mll work?
         fail = data[np.vectorize(ZBosonCuts.cut_mass_lower)(data.mll)].index
