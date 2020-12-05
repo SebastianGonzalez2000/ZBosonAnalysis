@@ -1,4 +1,5 @@
 import uproot
+import uproot_methods
 import pandas as pd
 import time
 import math
@@ -14,6 +15,8 @@ import os
 import ZBosonSamples
 import ZBosonCuts
 import ZBosonHistograms
+
+
 
 
 class CustomTicker(LogFormatterSciNotation):
@@ -80,12 +83,14 @@ def get_data_from_files():
 
 # TODO: is this mll valid?
 
-def calc_mll(lep_pt, lep_eta, lep_phi):
-    mll = 2 * lep_pt[0] * lep_pt[1]
-    cosh = math.cosh(lep_eta[0] - lep_eta[1])
-    cos = math.cos(lep_phi[0] - lep_phi[1])
-    mll *= (cosh - cos)
-    return math.sqrt(mll)/1000  # /1000 to go from MeV to GeV
+def calc_mll(lep_pt, lep_eta, lep_phi, lep_E):
+
+    ## TODO: Instantiate uproot lorentz vector
+    lepton_1 = uproot_methods.TLorentzVector.from_ptetaphie(lep_pt[0], lep_eta[0], lep_phi[0], lep_E[0])
+    lepton_2 = uproot_methods.TLorentzVector.from_ptetaphie(lep_pt[1], lep_eta[1], lep_phi[1], lep_E[1])
+
+    lepton_12 = lepton_1 + lepton_2
+    return lepton_12.mag/1000  # /1000 to go from MeV to GeV
 
 
 def read_file(path, sample):
@@ -94,18 +99,30 @@ def read_file(path, sample):
     data_all = pd.DataFrame()
     mc = uproot.open(path)["mini"]
     numevents = uproot.numentries(path, "mini")
-    for data in mc.iterate(["lep_n", "lep_pt", "lep_eta", "lep_phi", "lep_etcone20", "lep_ptcone30",
-                            "lep_isTightID"], flatten=False, entrysteps=2500000, outputtype=pd.DataFrame,
+    for data in mc.iterate(["lep_n", "lep_pt", "lep_eta", "lep_phi", "lep_E", "lep_etcone20", "lep_ptcone30",
+                            "lep_isTightID", "jet_n"], flatten=False, entrysteps=2500000, outputtype=pd.DataFrame,
                            entrystop=numevents * fraction):
         nIn = len(data.index)
 
+
+
         # Calculate reconstructed dilepton invariant mass
         # TODO: figure out if mll works
-        data['mll'] = np.vectorize(calc_mll)(data.lep_pt, data.lep_eta, data.lep_phi)
+        data['mll'] = np.vectorize(calc_mll)(data.lep_pt, data.lep_eta, data.lep_phi, data.lep_E)
 
         # Cut on number of leptons
         fail = data[np.vectorize(ZBosonCuts.cut_lep_n)(data.lep_n)].index
         data.drop(fail, inplace=True)
+
+        ## TODO: Instantiate uproot lorentz vector
+        lepton_1 = uproot_methods.TLorentzVector.from_ptetaphie(data.lep_pt[0], data.lep_eta[0], data.lep_phi[0], data.lep_E[0])
+        lepton_2 = uproot_methods.TLorentzVector.from_ptetaphie(data.lep_pt[1], data.lep_eta[1], data.lep_phi[1], data.lep_E[1])
+
+        ## lepton_1.theta
+
+        ## if (data.lep_isTightID[0])
+
+        # if (data.jet_n == 0):
 
         # Cut on oppositely charged leptons
         fail = data[np.vectorize(ZBosonCuts.cut_opposite_charge)(data.lep_charge)].index
@@ -122,6 +139,9 @@ def read_file(path, sample):
         # Cut on transverse momentum of the photons
         fail = data[np.vectorize(ZBosonCuts.cut_lep_pt)(data.lep_pt)].index
         data.drop(fail, inplace=True)
+
+
+
 
         # Cut on ptcone30 isolation of leptons
         fail = data[np.vectorize(ZBosonCuts.cut_lep_isolation_ptcone30)(data.lep_ptcone30, data.lep_pt)].index
