@@ -15,8 +15,7 @@ import os
 import ZBosonSamples
 import ZBosonCuts
 import ZBosonHistograms
-
-
+import infofile
 
 
 class CustomTicker(LogFormatterSciNotation):
@@ -53,20 +52,22 @@ def expand_columns(df):
 
     return df
 
-
 def read_sample(s):
     print('Processing '+s+' samples')
     frames = []
     for val in ZBosonSamples.samples[s]['list']:
-        fileString = tuple_path+"Data/"+val+".2lep.root"
+        prefix = "MC/mc_"
+        if s == 'data':
+            prefix = "Data/"
+        else: prefix += str(infofile.infos[val]["DSID"])+"."
+        fileString = tuple_path+prefix+val+".2lep.root" # change ending depending on collection used, e.g. .4lep.root
         if fileString != "":
-            temp = read_file(fileString, val)
-            # TODO: What is this?
-            if not os.path.exists('resultsHyy') and save_results!=None: os.makedirs('resultsHyy')
-            if save_results=='csv': temp.to_csv('resultsHyy/dataframe_id_'+val+'.csv')
+            temp = read_file(fileString,val)
+            if not os.path.exists('resultsZBoson') and save_results!=None: os.makedirs('resultsZBoson')
+            if save_results=='csv': temp.to_csv('resultsZBoson/dataframe_id_'+val+'.csv')
             elif save_results=='h5' and len(temp.index)>0:
                 temp = expand_columns(temp)
-                temp.to_hdf('resultsHyy/dataframe_id_'+val+'.h5',key='df',mode='w')
+                temp.to_hdf('resultsZBoson/dataframe_id_'+val+'.h5',key='df',mode='w')
             frames.append(temp)
         else:
             print("Error: "+val+" not found!")
@@ -85,9 +86,10 @@ def get_data_from_files():
 
 def calc_mll(lep_pt, lep_eta, lep_phi, lep_E):
 
-    ## TODO: Instantiate uproot lorentz vector
-    lepton_1 = uproot_methods.TLorentzVector.from_ptetaphie(lep_pt[0], lep_eta[0], lep_phi[0], lep_E[0])
-    lepton_2 = uproot_methods.TLorentzVector.from_ptetaphie(lep_pt[1], lep_eta[1], lep_phi[1], lep_E[1])
+    ## TODO: Instantiate uproot lorentz vector using __init__()
+    ## Remember that the first three components are momentum components but you are using them as pt, eta, phi
+    lepton_1 = uproot_methods.TLorentzVector(lep_pt[0], lep_eta[0], lep_phi[0], lep_E[0])
+    lepton_2 = uproot_methods.TLorentzVector(lep_pt[1], lep_eta[1], lep_phi[1], lep_E[1])
 
     lepton_12 = lepton_1 + lepton_2
     return lepton_12.mag/1000  # /1000 to go from MeV to GeV
@@ -99,6 +101,7 @@ def read_file(path, sample):
     data_all = pd.DataFrame()
     mc = uproot.open(path)["mini"]
     numevents = uproot.numentries(path, "mini")
+    ##TODO: Add branches that appear on the C++ implementation
     for data in mc.iterate(["lep_n", "lep_pt", "lep_eta", "lep_phi", "lep_E", "lep_etcone20", "lep_ptcone30",
                             "lep_isTightID", "jet_n"], flatten=False, entrysteps=2500000, outputtype=pd.DataFrame,
                            entrystop=numevents * fraction):
@@ -115,8 +118,8 @@ def read_file(path, sample):
         data.drop(fail, inplace=True)
 
         ## TODO: Instantiate uproot lorentz vector
-        lepton_1 = uproot_methods.TLorentzVector.from_ptetaphie(data.lep_pt[0], data.lep_eta[0], data.lep_phi[0], data.lep_E[0])
-        lepton_2 = uproot_methods.TLorentzVector.from_ptetaphie(data.lep_pt[1], data.lep_eta[1], data.lep_phi[1], data.lep_E[1])
+        lepton_1 = uproot_methods.TLorentzVector(data.lep_pt[0], data.lep_eta[0], data.lep_phi[0], data.lep_E[0])
+        lepton_2 = uproot_methods.TLorentzVector(data.lep_pt[1], data.lep_eta[1], data.lep_phi[1], data.lep_E[1])
 
         ## lepton_1.theta
 
@@ -184,10 +187,10 @@ def read_file(path, sample):
 
 
 def plot_data(data):
-    signal_format = None  # 'line' or 'hist' or None
+    signal_format = 'hist'  # 'line' or 'hist' or None
     Total_SM_label = False  # for Total SM black line in plot and legend
     plot_label = r'$Z \rightarrow ll$'
-    signal_label = ''
+    signal_label = r'Signal ($m_Z=91$ GeV)'
 
     # *******************
     # general definitions (shouldn't need to change)
@@ -214,6 +217,7 @@ def plot_data(data):
         bin_centres = [h_xrange_min + h_bin_width / 2 + x * h_bin_width for x in range(h_num_bins)]
 
         data_x, _ = np.histogram(data['data'][x_variable].values, bins=bins)
+        # TODO: error bars just sqrt of data point?
         data_x_errors = np.sqrt(data_x)
 
         # data fit
@@ -226,6 +230,7 @@ def plot_data(data):
         model = polynomial_mod + gaussian_mod
         out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
 
+        # TODO: What is this doing?
         # background part of fit
         params_dict = out.params.valuesdict()
         c0 = params_dict['c0']
@@ -235,6 +240,8 @@ def plot_data(data):
         c4 = params_dict['c4']
         background = c0 + c1 * bin_centres_array + c2 * bin_centres_array ** 2 + c3 * bin_centres_array ** 3 + c4 * bin_centres_array ** 4
 
+
+        ## TODO: Wouldn't signal = None?
         signal_x = None
         if signal_format == 'line':
             signal_x, _ = np.histogram(data[signal][x_variable].values, bins=bins,
@@ -292,6 +299,8 @@ def plot_data(data):
             y_units = ''
         main_axes.set_ylabel(r'Events / ' + str(h_bin_width) + y_units, fontname='sans-serif',
                              horizontalalignment='right', y=1.0, fontsize=11)
+
+        # TODO: Want to do log scale?
         if h_log_y:
             main_axes.set_yscale('log')
             smallest_contribution = mc_x_heights[0][0]
