@@ -164,7 +164,7 @@ infos = {
 
   # Mono Z
 
-  'dmV_Zll_MET40_DM1_MM10': {'DSID'    : 303511,
+  'dmV_Zll_MET40_DM1_MM19': {'DSID'    : 303511,
               'events'  : 10000,
               'red_eff' : 1,
               'sumw'    : 10000,

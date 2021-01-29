@@ -30,11 +30,11 @@ save_results = 'csv' # 'h5' or 'csv' or None
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = 1  # reduce this is you want the code to run quicker
+fraction = 0.1  # reduce this is you want the code to run quicker
 
 tuple_path = "https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/2lep/"  # web address
 
-stack_order = []  # put smallest contribution first, then increase
+stack_order = ['diboson', 'single top', 'Z+jets inclusive', 'ttbar', 'W+jets inclusive']  # put smallest contribution first, then increase
 
 
 def expand_columns(df): ## Ready
@@ -166,16 +166,9 @@ def read_file(path, sample):
         fail = data[np.vectorize(ZBosonCuts.lepton_isolated_hard_pt)(data.lep_pt, data.lep_ptcone30, data.lep_etcone20)].index
         data.drop(fail, inplace=True)
 
-        # TODO: How do I replicate the leptemp.theta() for the two cuts below?
-        # (lep_type->at(i) == 11 && TMath::Abs(lep_eta->at(i)) < 2.47 && ( TMath::Abs(lep_eta->at(i)) < 1.37 || TMath::Abs(lep_eta->at(i)) > 1.52 )) && !(TMath::Abs(lep_trackd0pvunbiased->at(i))/lep_tracksigd0pvunbiased->at(i) < 5 && TMath::Abs(lep_z0->at(i)*TMath::Sin(leptemp.Theta())) < 0.5)
-        fail = data[np.vectorize(ZBosonCuts.electron_selection)(data.lep_type, data.lep_eta, data.lep_trackd0pvunbiased, data.lep_tracksigd0pvunbiased, data.lep_z0)].index
+        # electron and muon selection
+        fail = data[np.vectorize(ZBosonCuts.lepton_selection)(data.lep_type, data.lep_pt,data.lep_eta, data.lep_phi, data.lep_E, data.lep_trackd0pvunbiased, data.lep_tracksigd0pvunbiased, data.lep_z0)].index
         data.drop(fail, inplace=True)
-
-        # (lep_type->at(i) == 13 && TMath::Abs(lep_eta->at(i)) < 2.5) && !(TMath::Abs(lep_trackd0pvunbiased->at(i))/lep_tracksigd0pvunbiased->at(i) < 3 && TMath::Abs(lep_z0->at(i)*TMath::Sin(leptemp.Theta())) < 0.5)
-        fail = data[np.vectorize(ZBosonCuts.muon_selection)(data.lep_type, data.lep_eta, data.lep_trackd0pvunbiased, data.lep_tracksigd0pvunbiased, data.lep_z0)].index
-        data.drop(fail, inplace=True)
-
-
 
         # Cut on oppositely charged leptons
         fail = data[np.vectorize(ZBosonCuts.cut_opposite_charge)(data.lep_charge)].index
