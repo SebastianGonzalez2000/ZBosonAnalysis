@@ -26,7 +26,7 @@ class CustomTicker(LogFormatterSciNotation):
             return "{x:g}".format(x=x)
 
 
-save_results = None # 'h5' or 'csv' or None
+save_results = 'csv' # 'h5' or 'csv' or None
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
@@ -37,7 +37,7 @@ tuple_path = "https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/2le
 stack_order = []  # put smallest contribution first, then increase
 
 
-def expand_columns(df):
+def expand_columns(df): ## Ready
     for object_column in df.select_dtypes('object').columns:
 
         # expand df.object_column into its own dataframe
@@ -52,7 +52,7 @@ def expand_columns(df):
 
     return df
 
-def read_sample(s):
+def read_sample(s): ## Ready
     print('Processing '+s+' samples')
     frames = []
     for val in ZBosonSamples.samples[s]['list']:
@@ -75,24 +75,58 @@ def read_sample(s):
     return data_s
 
 
-def get_data_from_files():
+def get_data_from_files(): ##Ready
     data = {}
     for s in ZBosonSamples.samples:
         data[s] = read_sample(s)
 
     return data
 
-# TODO: is this mll valid?
-
 def calc_mll(lep_pt, lep_eta, lep_phi, lep_E):
 
-    ## TODO: Instantiate uproot lorentz vector using __init__()
-    ## Remember that the first three components are momentum components but you are using them as pt, eta, phi
-    lepton_1 = uproot_methods.TLorentzVector(lep_pt[0], lep_eta[0], lep_phi[0], lep_E[0])
-    lepton_2 = uproot_methods.TLorentzVector(lep_pt[1], lep_eta[1], lep_phi[1], lep_E[1])
+    vector_1 = uproot_methods.TLorentzVector.from_ptetaphie(lep_pt[0], lep_eta[0], lep_phi[0], lep_E[0])
+    vector_2 = uproot_methods.TLorentzVector.from_ptetaphie(lep_pt[1], lep_eta[1], lep_phi[1], lep_E[1])
 
-    lepton_12 = lepton_1 + lepton_2
-    return lepton_12.mag/1000  # /1000 to go from MeV to GeV
+    vector_12 = vector_1 + vector_2
+
+    '''
+    theta_0 = 2*math.atan(math.exp(-lep_eta[0]))
+    theta_1 = 2*math.atan(math.exp(-lep_eta[1]))
+
+    p_0 = lep_pt[0]/math.sin(theta_0)
+    p_1 = lep_pt[1]/math.sin(theta_1)
+
+    px_0 = p_0*math.sin(theta_0)*math.cos(lep_phi[0])
+    px_1 = p_1*math.sin(theta_1)*math.cos(lep_phi[1])
+
+    py_0 = p_0*math.sin(theta_0)*math.sin(lep_phi[0])
+    py_1 = p_1*math.sin(theta_1)*math.sin(lep_phi[1])
+
+    pz_0 = p_0*math.cos(theta_0)
+    pz_1 = p_1*math.cos(theta_1)
+
+    sumpx = px_0 + px_1
+    sumpy = py_0 + py_1
+    sumpz = pz_0 + pz_1
+
+    sumE = p_0 + p_1
+
+    mll = sumE ** 2 - sumpz ** 2 - sumpx ** 2 - sumpy ** 2
+
+    return math.sqrt(mll) / 1000  # /1000 to go from MeV to GeV
+    '''
+
+    return vector_12.mag / 1000
+
+def calc_weight(mcWeight,scaleFactor_PILEUP,scaleFactor_ELE,
+                scaleFactor_MUON, scaleFactor_LepTRIGGER):
+    return mcWeight*scaleFactor_PILEUP*scaleFactor_ELE*scaleFactor_MUON*scaleFactor_LepTRIGGER
+
+def get_xsec_weight(totalWeight,sample):
+    info = infofile.infos[sample]
+    weight = (lumi*1000*info["xsec"])/(info["sumw"]*info["red_eff"]) #*1000 to go from fb-1 to pb-1
+    weight *= totalWeight
+    return weight
 
 
 def read_file(path, sample):
@@ -101,31 +135,47 @@ def read_file(path, sample):
     data_all = pd.DataFrame()
     mc = uproot.open(path)["mini"]
     numevents = uproot.numentries(path, "mini")
-    ##TODO: Add branches that appear on the C++ implementation
-    for data in mc.iterate(["lep_n", "lep_pt", "lep_eta", "lep_phi", "lep_E", "lep_etcone20", "lep_ptcone30",
-                            "lep_isTightID", "jet_n"], flatten=False, entrysteps=2500000, outputtype=pd.DataFrame,
+
+    for data in mc.iterate(["scaleFactor_ELE", "scaleFactor_MUON", "scaleFactor_LepTRIGGER", "scaleFactor_PILEUP", "mcWeight", "trigE", "trigM", "lep_n", "lep_pt", "lep_eta", "lep_phi", "lep_E", "lep_z0", "lep_type",
+                            "lep_isTightID", "lep_ptcone30", "lep_etcone20",
+                            "lep_trackd0pvunbiased", "lep_tracksigd0pvunbiased", "jet_n"], flatten=False, entrysteps=2500000, outputtype=pd.DataFrame,
                            entrystop=numevents * fraction):
+
         nIn = len(data.index)
 
+        if 'data' not in sample:
+            data['totalWeight'] = np.vectorize(calc_weight)(data.mcWeight,data.scaleFactor_PILEUP,data.scaleFactor_ELE,data.scaleFactor_MUON,data.scaleFactor_LepTRIGGER)
+            data['totalWeight'] = np.vectorize(get_xsec_weight)(data.totalWeight,sample)
 
-
-        # Calculate reconstructed dilepton invariant mass
-        # TODO: figure out if mll works
-        data['mll'] = np.vectorize(calc_mll)(data.lep_pt, data.lep_eta, data.lep_phi, data.lep_E)
+        data.drop(["mcWeight", "scaleFactor_PILEUP", "scaleFactor_ELE", "scaleFactor_MUON", "scaleFactor_LepTRIGGER"],
+                  axis=1, inplace=True)
 
         # Cut on number of leptons
         fail = data[np.vectorize(ZBosonCuts.cut_lep_n)(data.lep_n)].index
         data.drop(fail, inplace=True)
 
-        ## TODO: Instantiate uproot lorentz vector
-        lepton_1 = uproot_methods.TLorentzVector(data.lep_pt[0], data.lep_eta[0], data.lep_phi[0], data.lep_E[0])
-        lepton_2 = uproot_methods.TLorentzVector(data.lep_pt[1], data.lep_eta[1], data.lep_phi[1], data.lep_E[1])
+        # Preselection cut for electron/muon trigger
+        fail = data[np.vectorize(ZBosonCuts.lepton_trigger)(data.trigE, data.trigM)].index
+        data.drop(fail, inplace=True)
 
-        ## lepton_1.theta
+        # Both leptons are tight
+        fail = data[np.vectorize(ZBosonCuts.lepton_is_tight)(data.lep_isTightID)].index
+        data.drop(fail, inplace=True)
 
-        ## if (data.lep_isTightID[0])
+        # Both leptons are isolated and hard pT
+        fail = data[np.vectorize(ZBosonCuts.lepton_isolated_hard_pt)(data.lep_pt, data.lep_ptcone30, data.lep_etcone20)].index
+        data.drop(fail, inplace=True)
 
-        # if (data.jet_n == 0):
+        # TODO: How do I replicate the leptemp.theta() for the two cuts below?
+        # (lep_type->at(i) == 11 && TMath::Abs(lep_eta->at(i)) < 2.47 && ( TMath::Abs(lep_eta->at(i)) < 1.37 || TMath::Abs(lep_eta->at(i)) > 1.52 )) && !(TMath::Abs(lep_trackd0pvunbiased->at(i))/lep_tracksigd0pvunbiased->at(i) < 5 && TMath::Abs(lep_z0->at(i)*TMath::Sin(leptemp.Theta())) < 0.5)
+        fail = data[np.vectorize(ZBosonCuts.electron_selection)(data.lep_type, data.lep_eta, data.lep_trackd0pvunbiased, data.lep_tracksigd0pvunbiased, data.lep_z0)].index
+        data.drop(fail, inplace=True)
+
+        # (lep_type->at(i) == 13 && TMath::Abs(lep_eta->at(i)) < 2.5) && !(TMath::Abs(lep_trackd0pvunbiased->at(i))/lep_tracksigd0pvunbiased->at(i) < 3 && TMath::Abs(lep_z0->at(i)*TMath::Sin(leptemp.Theta())) < 0.5)
+        fail = data[np.vectorize(ZBosonCuts.muon_selection)(data.lep_type, data.lep_eta, data.lep_trackd0pvunbiased, data.lep_tracksigd0pvunbiased, data.lep_z0)].index
+        data.drop(fail, inplace=True)
+
+
 
         # Cut on oppositely charged leptons
         fail = data[np.vectorize(ZBosonCuts.cut_opposite_charge)(data.lep_charge)].index
@@ -135,47 +185,15 @@ def read_file(path, sample):
         fail = data[np.vectorize(ZBosonCuts.cut_same_flavour)(data.lep_type)].index
         data.drop(fail, inplace=True)
 
-        # Cut on lepton reconstruction
-        fail = data[np.vectorize(ZBosonCuts.cut_lep_reconstruction)(data.lep_isTightID)].index
+        # Calculate invariant mass
+        data['mll'] = np.vectorize(calc_mll)(data.lep_pt, data.lep_eta, data.lep_phi, data.lep_E)
+
+        # Cut on invariant mass
+        fail = data[np.vectorize(ZBosonCuts.cut_invariant_mass)(data.mll)].index
         data.drop(fail, inplace=True)
 
-        # Cut on transverse momentum of the photons
-        fail = data[np.vectorize(ZBosonCuts.cut_lep_pt)(data.lep_pt)].index
-        data.drop(fail, inplace=True)
-
-
-
-
-        # Cut on ptcone30 isolation of leptons
-        fail = data[np.vectorize(ZBosonCuts.cut_lep_isolation_ptcone30)(data.lep_ptcone30, data.lep_pt)].index
-        data.drop(fail, inplace=True)
-
-        # Cut on etcone20 isolation of leptons
-        fail = data[np.vectorize(ZBosonCuts.cut_lep_isolation_etcone20)(data.lep_etcone20, data.lep_pt)].index
-        data.drop(fail, inplace=True)
-
-        # Cut on electron pseudorapidity outside fiducial region
-        fail = data[np.vectorize(ZBosonCuts.cut_electron_eta_fiducial)(data.lep_eta, data.lep_type)].index
-        data.drop(fail, inplace=True)
-
-        # Cut on muon pseudorapidity outside fiducial region
-        fail = data[np.vectorize(ZBosonCuts.cut_muon_eta_fiducial)(data.lep_eta, data.lep_type)].index
-        data.drop(fail, inplace=True)
-
-
-        ## TODO: Implement these two final cuts
-        #Cut on trackd0pvunbiased for electrons
-        # Cut on trackd0pvunbiased for muons
-
-
-        # Cut on lower limit of reconstructed invariant mass
-        # TODO: does data.mll work?
-        fail = data[np.vectorize(ZBosonCuts.cut_mass_lower)(data.mll)].index
-        data.drop(fail, inplace=True)
-
-        # Cut on upper limit of reconsructed invariant mass
-        # TODO: does data.mll work?
-        fail = data[np.vectorize(ZBosonCuts.cut_mass_upper)(data.mll)].index
+        # jet cut
+        fail = data[np.vectorize(ZBosonCuts.cut_jet_n)(data.jet_n)].index
         data.drop(fail, inplace=True)
 
         nOut = len(data.index)
