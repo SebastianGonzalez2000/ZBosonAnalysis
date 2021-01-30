@@ -155,6 +155,7 @@ infos = {
                    'sumw'    : 30000,
                    'xsec'    : 0.00003702},
 
+
   'RS_G_ZZ_llll_c10_m2000': {'DSID'    : 303334,
                    'events'  : 5000,
                    'red_eff' : 1,

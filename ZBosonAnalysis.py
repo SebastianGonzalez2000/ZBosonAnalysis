@@ -18,6 +18,7 @@ import ZBosonHistograms
 import infofile
 
 
+
 class CustomTicker(LogFormatterSciNotation):
     def __call__(self, x, pos=None):
         if x not in [1, 10]:
