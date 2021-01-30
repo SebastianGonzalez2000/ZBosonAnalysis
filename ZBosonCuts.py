@@ -53,4 +53,3 @@ def lepton_selection(lep_type, lep_pt, lep_eta, lep_phi, lep_E, lep_trackd0pvunb
 
     return electron_selection or muon_selection
 
-

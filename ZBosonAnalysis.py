@@ -38,6 +38,7 @@ tuple_path = "/Users/sebastiangonzalez/Desktop/Atlas_Data_Sets/"  # web address
 stack_order = []  # put smallest contribution first, then increase
 
 
+
 def expand_columns(df): ## Ready
     for object_column in df.select_dtypes('object').columns:
 

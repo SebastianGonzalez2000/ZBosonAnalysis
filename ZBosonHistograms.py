@@ -2,7 +2,7 @@ mll = {
     # change plotting parameters
     'bin_width':1.5333,
     'num_bins':30,
-    'xrange_min':68,
+    'xrange_min': 68,
     'xlabel':r'$\mathrm{m_{ll}}$ [GeV]',
     'log_y': False,
 
