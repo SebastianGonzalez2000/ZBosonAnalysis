@@ -33,9 +33,9 @@ lumi = 10  # 10 fb-1 for data_A,B,C,D
 
 fraction = 0.1  # reduce this is you want the code to run quicker
 
-tuple_path = "https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/2lep/"  # web address
+tuple_path = "/Users/sebastiangonzalez/Desktop/Atlas_Data_Sets/"  # web address
 
-stack_order = ['diboson', 'single top', 'Z+jets inclusive', 'ttbar', 'W+jets inclusive']  # put smallest contribution first, then increase
+stack_order = []  # put smallest contribution first, then increase
 
 
 def expand_columns(df): ## Ready
@@ -138,7 +138,7 @@ def read_file(path, sample):
     numevents = uproot.numentries(path, "mini")
 
     for data in mc.iterate(["scaleFactor_ELE", "scaleFactor_MUON", "scaleFactor_LepTRIGGER", "scaleFactor_PILEUP", "mcWeight", "trigE", "trigM", "lep_n", "lep_pt", "lep_eta", "lep_phi", "lep_E", "lep_z0", "lep_type",
-                            "lep_isTightID", "lep_ptcone30", "lep_etcone20",
+                            "lep_isTightID", "lep_ptcone30", "lep_etcone20", "lep_charge",
                             "lep_trackd0pvunbiased", "lep_tracksigd0pvunbiased", "jet_n"], flatten=False, entrysteps=2500000, outputtype=pd.DataFrame,
                            entrystop=numevents * fraction):
 
@@ -199,7 +199,7 @@ def read_file(path, sample):
 
 
 def plot_data(data):
-    signal_format = 'hist'  # 'line' or 'hist' or None
+    signal_format = None  # 'line' or 'hist' or None
     Total_SM_label = False  # for Total SM black line in plot and legend
     plot_label = r'$Z \rightarrow ll$'
     signal_label = r'Signal ($m_Z=91$ GeV)'
@@ -236,7 +236,7 @@ def plot_data(data):
         gaussian_mod = GaussianModel()
         bin_centres_array = np.asarray(bin_centres)
         pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=91.7, center=91., sigma=2.4)
+        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=85000, center=91., sigma=2.4)
         model = polynomial_mod + gaussian_mod
         out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
 

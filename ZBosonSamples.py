@@ -4,7 +4,10 @@ samples = {
         'list': ['data_A', 'data_B', 'data_C', 'data_D']
     },
 
-    'diboson': {
+}
+
+'''
+'diboson': {
         'list': ['ZqqZll', 'WqqZll', 'WpqqWmlv', 'WlvZqq'],  # option 2
         'color': '#ff0000'
     },
@@ -30,6 +33,5 @@ samples = {
         'list': ['Wplusenu', 'Wplusmunu', 'Wplustaunu', 'Wminusenu', 'Wminusmunu', 'Wminustaunu'], # part of option 6
         'color': '#18aeea'
     }
-
-}
+'''
 
