@@ -228,20 +228,17 @@ def plot_data(data):
         bin_centres = [h_xrange_min + h_bin_width / 2 + x * h_bin_width for x in range(h_num_bins)]
 
         data_x, _ = np.histogram(data['data'][x_variable].values, bins=bins)
-        # TODO: error bars just sqrt of data point?
         data_x_errors = np.sqrt(data_x)
 
         # data fit
         polynomial_mod = PolynomialModel(4)
         gaussian_mod = GaussianModel()
         bin_centres_array = np.asarray(bin_centres)
-        # TODO: How should I change this?
         pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
         pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=91.7, center=91., sigma=2.4)
         model = polynomial_mod + gaussian_mod
         out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
 
-        # TODO: What is this doing?
         # background part of fit
         params_dict = out.params.valuesdict()
         c0 = params_dict['c0']
