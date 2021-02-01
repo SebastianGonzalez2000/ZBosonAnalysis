@@ -27,15 +27,15 @@ class CustomTicker(LogFormatterSciNotation):
             return "{x:g}".format(x=x)
 
 
-save_results = 'csv' # 'h5' or 'csv' or None
+save_results = None # 'h5' or 'csv' or None
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = 0.1  # reduce this is you want the code to run quicker
+fraction = 1 # reduce this is you want the code to run quicker
 
 tuple_path = "/Users/sebastiangonzalez/Desktop/Atlas_Data_Sets/"  # web address
 
-stack_order = []  # put smallest contribution first, then increase
+stack_order = ['single top', 'W+jets', 'ttbar', 'Diboson']  # put smallest contribution first, then increase
 
 
 
@@ -90,33 +90,6 @@ def calc_mll(lep_pt, lep_eta, lep_phi, lep_E):
     vector_2 = uproot_methods.TLorentzVector.from_ptetaphie(lep_pt[1], lep_eta[1], lep_phi[1], lep_E[1])
 
     vector_12 = vector_1 + vector_2
-
-    '''
-    theta_0 = 2*math.atan(math.exp(-lep_eta[0]))
-    theta_1 = 2*math.atan(math.exp(-lep_eta[1]))
-
-    p_0 = lep_pt[0]/math.sin(theta_0)
-    p_1 = lep_pt[1]/math.sin(theta_1)
-
-    px_0 = p_0*math.sin(theta_0)*math.cos(lep_phi[0])
-    px_1 = p_1*math.sin(theta_1)*math.cos(lep_phi[1])
-
-    py_0 = p_0*math.sin(theta_0)*math.sin(lep_phi[0])
-    py_1 = p_1*math.sin(theta_1)*math.sin(lep_phi[1])
-
-    pz_0 = p_0*math.cos(theta_0)
-    pz_1 = p_1*math.cos(theta_1)
-
-    sumpx = px_0 + px_1
-    sumpy = py_0 + py_1
-    sumpz = pz_0 + pz_1
-
-    sumE = p_0 + p_1
-
-    mll = sumE ** 2 - sumpz ** 2 - sumpx ** 2 - sumpy ** 2
-
-    return math.sqrt(mll) / 1000  # /1000 to go from MeV to GeV
-    '''
 
     return vector_12.mag / 1000
 
@@ -188,8 +161,9 @@ def read_file(path, sample):
         data.drop(fail, inplace=True)
 
         # jet cut
-        fail = data[np.vectorize(ZBosonCuts.cut_jet_n)(data.jet_n)].index
-        data.drop(fail, inplace=True)
+        #TODO: This cut always generates this error msg: ValueError: cannot call `vectorize` on size 0 inputs unless `otypes` is set
+        #fail = data[np.vectorize(ZBosonCuts.cut_jet_n)(data.jet_n)].index
+        #data.drop(fail, inplace=True)
 
         nOut = len(data.index)
         data_all = data_all.append(data)
@@ -200,10 +174,10 @@ def read_file(path, sample):
 
 
 def plot_data(data):
-    signal_format = None  # 'line' or 'hist' or None
+    signal_format = 'hist'  # 'line' or 'hist' or None
     Total_SM_label = False  # for Total SM black line in plot and legend
     plot_label = r'$Z \rightarrow ll$'
-    signal_label = r'Signal ($m_Z=91$ GeV)'
+    signal_label = plot_label
 
     # *******************
     # general definitions (shouldn't need to change)
@@ -237,7 +211,7 @@ def plot_data(data):
         gaussian_mod = GaussianModel()
         bin_centres_array = np.asarray(bin_centres)
         pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=85000, center=91., sigma=2.4)
+        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=8100000, center=91.18, sigma=2.7)
         model = polynomial_mod + gaussian_mod
         out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
 
@@ -250,8 +224,6 @@ def plot_data(data):
         c4 = params_dict['c4']
         background = c0 + c1 * bin_centres_array + c2 * bin_centres_array ** 2 + c3 * bin_centres_array ** 3 + c4 * bin_centres_array ** 4
 
-
-        ## TODO: Wouldn't signal = None?
         signal_x = None
         if signal_format == 'line':
             signal_x, _ = np.histogram(data[signal][x_variable].values, bins=bins,
@@ -260,7 +232,8 @@ def plot_data(data):
             signal_x = data[signal][x_variable].values
             signal_weights = data[signal].totalWeight.values
             signal_color = ZBosonSamples.samples[signal]['color']
-        signal_x = data_x - background
+
+        signal_x_reshaped = data_x - background
 
         mc_x = []
         mc_weights = []
@@ -273,7 +246,7 @@ def plot_data(data):
             mc_x.append(data[s][x_variable].values)
             mc_colors.append(ZBosonSamples.samples[s]['color'])
             mc_weights.append(data[s].totalWeight.values)
-            mc_x_heights, _ = np.histogram(data[s][x_variable].values, bins=bins, weights=data[s].totalWeight.values)
+            mc_x_heights, _ = np.histogram(data[s][x_variable].values, bins=bins, weights=data[s].totalWeight.values) #mc_heights?
             mc_x_tot = np.add(mc_x_tot, mc_x_heights)
 
         mc_x_err = np.sqrt(mc_x_tot)
@@ -285,6 +258,7 @@ def plot_data(data):
         plt.axes([0.1, 0.3, 0.85, 0.65])  # (left, bottom, width, height)
         main_axes = plt.gca()
         main_axes.errorbar(x=bin_centres, y=data_x, yerr=data_x_errors, fmt='ko', label='Data')
+        mc_heights = main_axes.hist(mc_x, bins=bins, weights=mc_weights, stacked=True, color=mc_colors, label=mc_labels)
         if Total_SM_label:
             totalSM_handle, = main_axes.step(bins, np.insert(mc_x_tot, 0, mc_x_tot[0]), color='black')
         if signal_format == 'line':
@@ -296,8 +270,8 @@ def plot_data(data):
                            label=signal)
         main_axes.bar(bin_centres, 2 * mc_x_err, bottom=mc_x_tot - mc_x_err, alpha=0.5, color='none', hatch="////",
                       width=h_bin_width, label='Stat. Unc.')
-        main_axes.plot(bin_centres, out.best_fit, '-r', label='Sig+Bkg Fit ($m_Z=91$ GeV)')
-        main_axes.plot(bin_centres, background, '--r', label='Bkg (4th order polynomial)')
+        main_axes.plot(bin_centres, out.best_fit, '-r', label='Sig+Bkg Fit')
+        main_axes.plot(bin_centres, background, '--r', label='Bkg')
 
         main_axes.set_xlim(left=h_xrange_min, right=bins[-1])
         main_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
@@ -307,13 +281,12 @@ def plot_data(data):
             y_units = ' ' + h_xlabel[h_xlabel.find("[") + 1:h_xlabel.find("]")]
         else:
             y_units = ''
-        main_axes.set_ylabel(r'Events / ' + str(h_bin_width) + y_units, fontname='sans-serif',
+        main_axes.set_ylabel(r'Events / bin' , fontname='sans-serif',
                              horizontalalignment='right', y=1.0, fontsize=11)
 
-        # TODO: Want to do log scale?
         if h_log_y:
             main_axes.set_yscale('log')
-            smallest_contribution = mc_x_heights[0][0]
+            smallest_contribution = mc_heights[0][0] # TODO: mc_heights or mc_x_heights
             smallest_contribution.sort()
             bottom = smallest_contribution[-2]
             top = np.amax(data_x) * h_log_top_margin
@@ -326,13 +299,13 @@ def plot_data(data):
             main_axes.yaxis.set_minor_locator(AutoMinorLocator())
             main_axes.yaxis.get_major_ticks()[0].set_visible(False)
 
-        plt.text(0.2, 0.97, 'ATLAS Open Data', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
+        plt.text(0.015, 0.97, 'ATLAS Open Data', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
                  fontsize=13)
-        plt.text(0.2, 0.9, 'for education', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
+        plt.text(0.015, 0.9, 'for education', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
                  style='italic', fontsize=8)
-        plt.text(0.2, 0.86, r'$\sqrt{s}=13\,\mathrm{TeV},\;\int L\,dt=$' + lumi_used + '$\,\mathrm{fb}^{-1}$',
+        plt.text(0.015, 0.86, r'$\sqrt{s}=13\,\mathrm{TeV},\;\int L\,dt=$' + lumi_used + '$\,\mathrm{fb}^{-1}$',
                  ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
-        plt.text(0.2, 0.78, plot_label, ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
+        plt.text(0.015, 0.78, plot_label, ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
 
         # Create new legend handles but use the colors from the existing ones
         handles, labels = main_axes.get_legend_handles_labels()
@@ -353,22 +326,25 @@ def plot_data(data):
             new_handles.append(handles[labels.index('Total SM')])
             new_labels.append('Total SM')
         else:
-            new_handles.append(handles[labels.index('Sig+Bkg Fit ($m_Z=91$ GeV)')])
-            new_handles.append(handles[labels.index('Bkg (4th order polynomial)')])
-            new_labels.append('Sig+Bkg Fit ($m_Z=91$ GeV)')
-            new_labels.append('Bkg (4th order polynomial)')
+            new_handles.append(handles[labels.index('Sig+Bkg Fit')])
+            new_handles.append(handles[labels.index('Bkg')])
+            new_labels.append('Sig+Bkg Fit')
+            new_labels.append('Bkg')
         if signal is not None:
             new_handles.append(handles[labels.index(signal)])
             new_labels.append(signal_label)
         main_axes.legend(handles=new_handles, labels=new_labels, frameon=False, loc=h_legend_loc)
 
+
         # *************
         # Data-Bkg plot
         # *************
+
+
         plt.axes([0.1, 0.1, 0.85, 0.2])  # (left, bottom, width, height)
         ratio_axes = plt.gca()
         ratio_axes.yaxis.set_major_locator(MaxNLocator(nbins='auto', symmetric=True))
-        ratio_axes.errorbar(x=bin_centres, y=signal_x, yerr=data_x_errors, fmt='ko')
+        ratio_axes.errorbar(x=bin_centres, y=signal_x_reshaped, yerr=data_x_errors, fmt='ko')
         ratio_axes.plot(bin_centres, out.best_fit - background, '-r')
         ratio_axes.plot(bin_centres, background - background, '--r')
         ratio_axes.set_xlim(left=h_xrange_min, right=bins[-1])
@@ -382,11 +358,13 @@ def plot_data(data):
         else:
             ratio_axes.set_ylabel(r'Events-Bkg', fontname='sans-serif', x=1, fontsize=11)
 
+
         # Generic features for both plots
         main_axes.yaxis.set_label_coords(h_y_label_x_position, 1)
         ratio_axes.yaxis.set_label_coords(h_y_label_x_position, 0.5)
 
         plt.savefig("ZBoson_" + x_variable + ".pdf", bbox_inches='tight')
+
 
         print('chi^2 = ' + str(out.chisqr))
         print('gaussian centre = ' + str(params_dict['center']))
