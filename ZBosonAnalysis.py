@@ -27,13 +27,13 @@ class CustomTicker(LogFormatterSciNotation):
             return "{x:g}".format(x=x)
 
 
-save_results = None # 'h5' or 'csv' or None
+save_results = 'csv' # 'h5' or 'csv' or None
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = 1 # reduce this is you want the code to run quicker
+fraction = .05 # reduce this is you want the code to run quicker
 
-tuple_path = "/Users/sebastiangonzalez/Desktop/Atlas_Data_Sets/"  # web address
+tuple_path = "/data/newhouse/open-data/atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/2lep/"  # web address
 
 stack_order = ['single top', 'W+jets', 'ttbar', 'Diboson']  # put smallest contribution first, then increase
 
@@ -58,6 +58,14 @@ def read_sample(s): ## Ready
     print('Processing '+s+' samples')
     frames = []
     for val in ZBosonSamples.samples[s]['list']:
+
+        # use this if the data has already been processed and you just want to plot from the saved csv file
+        read_from_csv = False
+        if read_from_csv:
+            temp = pd.read_csv('resultsZBoson/dataframe_id_'+val+'.csv')
+            frames.append(temp)
+            continue
+
         prefix = "MC/mc_"
         if s == 'data':
             prefix = "Data/"
@@ -116,59 +124,63 @@ def read_file(path, sample):
                             "lep_trackd0pvunbiased", "lep_tracksigd0pvunbiased", "jet_n"], flatten=False, entrysteps=2500000, outputtype=pd.DataFrame,
                            entrystop=numevents * fraction):
 
-        nIn = len(data.index)
+        try:
+            nIn = len(data.index)
 
-        if 'data' not in sample:
-            data['totalWeight'] = np.vectorize(calc_weight)(data.mcWeight,data.scaleFactor_PILEUP,data.scaleFactor_ELE,data.scaleFactor_MUON,data.scaleFactor_LepTRIGGER)
-            data['totalWeight'] = np.vectorize(get_xsec_weight)(data.totalWeight,sample)
+            if 'data' not in sample:
+                data['totalWeight'] = np.vectorize(calc_weight)(data.mcWeight,data.scaleFactor_PILEUP,data.scaleFactor_ELE,data.scaleFactor_MUON,data.scaleFactor_LepTRIGGER)
+                data['totalWeight'] = np.vectorize(get_xsec_weight)(data.totalWeight,sample)
 
-        data.drop(["mcWeight", "scaleFactor_PILEUP", "scaleFactor_ELE", "scaleFactor_MUON", "scaleFactor_LepTRIGGER"],
-                  axis=1, inplace=True)
+            data.drop(["mcWeight", "scaleFactor_PILEUP", "scaleFactor_ELE", "scaleFactor_MUON", "scaleFactor_LepTRIGGER"],
+                    axis=1, inplace=True)
 
-        # Cut on number of leptons
-        fail = data[np.vectorize(ZBosonCuts.cut_lep_n)(data.lep_n)].index
-        data.drop(fail, inplace=True)
+            # Cut on number of leptons
+            fail = data[np.vectorize(ZBosonCuts.cut_lep_n)(data.lep_n)].index
+            data.drop(fail, inplace=True)
 
-        # Preselection cut for electron/muon trigger
-        fail = data[np.vectorize(ZBosonCuts.lepton_trigger)(data.trigE, data.trigM)].index
-        data.drop(fail, inplace=True)
+            # Preselection cut for electron/muon trigger
+            fail = data[np.vectorize(ZBosonCuts.lepton_trigger)(data.trigE, data.trigM)].index
+            data.drop(fail, inplace=True)
 
-        # Both leptons are tight
-        fail = data[np.vectorize(ZBosonCuts.lepton_is_tight)(data.lep_isTightID)].index
-        data.drop(fail, inplace=True)
+            # Both leptons are tight
+            fail = data[np.vectorize(ZBosonCuts.lepton_is_tight)(data.lep_isTightID)].index
+            data.drop(fail, inplace=True)
 
-        # Both leptons are isolated and hard pT
-        fail = data[np.vectorize(ZBosonCuts.lepton_isolated_hard_pt)(data.lep_pt, data.lep_ptcone30, data.lep_etcone20)].index
-        data.drop(fail, inplace=True)
+            # Both leptons are isolated and hard pT
+            fail = data[np.vectorize(ZBosonCuts.lepton_isolated_hard_pt)(data.lep_pt, data.lep_ptcone30, data.lep_etcone20)].index
+            data.drop(fail, inplace=True)
 
-        # electron and muon selection
-        fail = data[np.vectorize(ZBosonCuts.lepton_selection)(data.lep_type, data.lep_pt,data.lep_eta, data.lep_phi, data.lep_E, data.lep_trackd0pvunbiased, data.lep_tracksigd0pvunbiased, data.lep_z0)].index
-        data.drop(fail, inplace=True)
+            # electron and muon selection
+            fail = data[np.vectorize(ZBosonCuts.lepton_selection)(data.lep_type, data.lep_pt,data.lep_eta, data.lep_phi, data.lep_E, data.lep_trackd0pvunbiased, data.lep_tracksigd0pvunbiased, data.lep_z0)].index
+            data.drop(fail, inplace=True)
 
-        # Cut on oppositely charged leptons
-        fail = data[np.vectorize(ZBosonCuts.cut_opposite_charge)(data.lep_charge)].index
-        data.drop(fail, inplace=True)
+            # Cut on oppositely charged leptons
+            fail = data[np.vectorize(ZBosonCuts.cut_opposite_charge)(data.lep_charge)].index
+            data.drop(fail, inplace=True)
 
-        # Cut on leptons of same flavour
-        fail = data[np.vectorize(ZBosonCuts.cut_same_flavour)(data.lep_type)].index
-        data.drop(fail, inplace=True)
+            # Cut on leptons of same flavour
+            fail = data[np.vectorize(ZBosonCuts.cut_same_flavour)(data.lep_type)].index
+            data.drop(fail, inplace=True)
 
-        # Calculate invariant mass
-        data['mll'] = np.vectorize(calc_mll)(data.lep_pt, data.lep_eta, data.lep_phi, data.lep_E)
+            # Calculate invariant mass
+            data['mll'] = np.vectorize(calc_mll)(data.lep_pt, data.lep_eta, data.lep_phi, data.lep_E)
 
-        # Cut on invariant mass
-        fail = data[np.vectorize(ZBosonCuts.cut_invariant_mass)(data.mll)].index
-        data.drop(fail, inplace=True)
+            # Cut on invariant mass
+            fail = data[np.vectorize(ZBosonCuts.cut_invariant_mass)(data.mll)].index
+            data.drop(fail, inplace=True)
 
-        # jet cut
-        #TODO: This cut always generates this error msg: ValueError: cannot call `vectorize` on size 0 inputs unless `otypes` is set
-        #fail = data[np.vectorize(ZBosonCuts.cut_jet_n)(data.jet_n)].index
-        #data.drop(fail, inplace=True)
+            # jet cut
+            #TODO: This cut always generates this error msg: ValueError: cannot call `vectorize` on size 0 inputs unless `otypes` is set
+            #fail = data[np.vectorize(ZBosonCuts.cut_jet_n)(data.jet_n)].index
+            #data.drop(fail, inplace=True)
 
-        nOut = len(data.index)
-        data_all = data_all.append(data)
-        elapsed = time.time() - start
-        print("\t\tTime taken: " + str(elapsed) + ", nIn: " + str(nIn) + ", nOut: " + str(nOut))
+            nOut = len(data.index)
+            data_all = data_all.append(data)
+            elapsed = time.time() - start
+            print("\t\tTime taken: " + str(elapsed) + ", nIn: " + str(nIn) + ", nOut: " + str(nOut))
+        except ValueError:
+            print("ValueError. Probably vectorizing on zero-length input")
+            continue
 
     return data_all
 
