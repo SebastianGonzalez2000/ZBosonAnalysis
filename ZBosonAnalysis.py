@@ -27,11 +27,11 @@ class CustomTicker(LogFormatterSciNotation):
             return "{x:g}".format(x=x)
 
 
-save_results = 'csv' # 'h5' or 'csv' or None
+save_results = 'pickle' # 'h5' or 'csv' or 'pickle' or None
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = .05 # reduce this is you want the code to run quicker
+fraction = 1 # reduce this is you want the code to run quicker
 
 tuple_path = "/data/newhouse/open-data/atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/2lep/"  # web address
 
@@ -66,6 +66,12 @@ def read_sample(s): ## Ready
             frames.append(temp)
             continue
 
+        read_from_pickle = True
+        if read_from_pickle:
+            temp = pd.read_pickle('resultsZBoson/dataframe_id_'+val+'.pkl')
+            frames.append(temp)
+            continue
+
         prefix = "MC/mc_"
         if s == 'data':
             prefix = "Data/"
@@ -75,7 +81,8 @@ def read_sample(s): ## Ready
             temp = read_file(fileString,val)
             if not os.path.exists('resultsZBoson') and save_results!=None: os.makedirs('resultsZBoson')
             if save_results=='csv': temp.to_csv('resultsZBoson/dataframe_id_'+val+'.csv')
-            elif save_results=='h5' and len(temp.index)>0:
+            if save_results=='pickle': temp.to_pickle('resultsZBoson/dataframe_id_'+val+'.pkl')
+            if save_results=='h5' and len(temp.index)>0:
                 temp = expand_columns(temp)
                 temp.to_hdf('resultsZBoson/dataframe_id_'+val+'.h5',key='df',mode='w')
             frames.append(temp)
