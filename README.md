@@ -11,6 +11,6 @@ Link: http://opendata.atlas.cern/release/2020/documentation/frameworks/cpp.html
 ### What I learned
 
  - The Particle Physics concepts that go into this analysis and the general process that is carried when performing an experiment at the LHC
- - Improved my knowledge on the use of important Python libraries like Pandas, NumPy, Matplotlib, and Uproot
+ - Improved my knowledge on the use of important Python libraries such as Pandas, NumPy, Matplotlib, and Uproot
  - How OOP is implemented in Python
  - Working as a developer in a team
