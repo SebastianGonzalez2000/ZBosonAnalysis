@@ -225,16 +225,24 @@ def plot_data(data):
         data_x_errors = np.sqrt(data_x)
 
         # data fit
-        # TODO: Improve fit
         polynomial_mod = PolynomialModel(4)
         gaussian_mod = GaussianModel()
         bin_centres_array = np.asarray(bin_centres)
         pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=4050000, center=91.18, sigma=2.7)
+        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=91.7, center=125., sigma=2.4)
+        model = polynomial_mod + gaussian_mod
+        out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
+        params_dict = out.params.valuesdict()
+
+        # data fit
+        polynomial_mod = PolynomialModel(4)
+        gaussian_mod = GaussianModel()
+        bin_centres_array = np.asarray(bin_centres)
+        pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
+        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=8100000, center=91.18, sigma=2.7)
         model = polynomial_mod + gaussian_mod
         out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
 
-        # TODO: Remove background?
         # background part of fit
         params_dict = out.params.valuesdict()
         c0 = params_dict['c0']
@@ -355,8 +363,6 @@ def plot_data(data):
             new_labels.append(signal_label)
         main_axes.legend(handles=new_handles, labels=new_labels, frameon=False, loc=h_legend_loc)
 
-
-        # TODO: Plot Data / Sim
 
         # *************
         # Data-Bkg plot
