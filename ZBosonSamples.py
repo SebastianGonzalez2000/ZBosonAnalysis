@@ -16,8 +16,13 @@ samples = {
     },
 
     'Z+jets': {
-        'list': ['Zee', 'Zmumu', 'Ztautau'],
+        'list': ['Zee', 'Zmumu'],
         'color': '#0000ff'
+    },
+
+    'Ztautau': {
+        'list': ['Ztautau'],
+        'color': "#193ab3"
     },
 
     'ttbar': {
