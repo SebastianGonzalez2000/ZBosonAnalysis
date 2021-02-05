@@ -229,7 +229,7 @@ def plot_data(data):
         gaussian_mod = GaussianModel()
         bin_centres_array = np.asarray(bin_centres)
         pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=91.7, center=125., sigma=2.4)
+        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=10000, center=91.18, sigma=2.7)
         model = polynomial_mod + gaussian_mod
         out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
         params_dict = out.params.valuesdict()
@@ -334,7 +334,7 @@ def plot_data(data):
         plt.text(0.015, 0.86, r'$\sqrt{s}=13\,\mathrm{TeV},\;\int L\,dt=$' + lumi_used + '$\,\mathrm{fb}^{-1}$',
                  ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
         plt.text(0.015, 0.78, plot_label, ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
-        plt.text(0.015, 0.72, r'$m_Z = $' + str(params_dict['center']) + ' GeV', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
+        plt.text(0.015, 0.72, r'$m_Z = $' + str(round(params_dict['center'], 4)) + ' GeV', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
                  fontsize=10)
 
         # Create new legend handles but use the colors from the existing ones
