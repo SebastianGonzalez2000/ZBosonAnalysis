@@ -26,7 +26,7 @@ samples = {
     },
 
     'W+jets': {
-        'list': ['Wminusenu', 'Wplustaunu'], # removed:, 'Wminustaunu', 'Wplusenu', 'Wplusmunu', 'Wminusmunu'
+        'list': ['Wminusenu', 'Wplustaunu', 'Wminustaunu', 'Wplusenu', 'Wplusmunu', 'Wminusmunu'], # removed:,
         'color': '#18aeea'
     }
 

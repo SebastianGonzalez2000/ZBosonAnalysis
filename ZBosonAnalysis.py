@@ -27,13 +27,13 @@ class CustomTicker(LogFormatterSciNotation):
             return "{x:g}".format(x=x)
 
 
-save_results = 'pickle' # 'h5' or 'csv' or 'pickle' or None
+save_results = None # 'h5' or 'csv' or 'pickle' or None
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
 fraction = 0.01 # reduce this is you want the code to run quicker
 
-tuple_path = "/data/newhouse/open-data/atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/2lep/"  # web address
+tuple_path = "/Users/sebastiangonzalez/Desktop/Atlas_Data_Sets/"  # Seb's address
 
 stack_order = ['single top', 'W+jets', 'ttbar', 'Diboson']  # put smallest contribution first, then increase
 
@@ -66,7 +66,7 @@ def read_sample(s): ## Ready
             frames.append(temp)
             continue
 
-        read_from_pickle = True
+        read_from_pickle = False
         if read_from_pickle:
             temp = pd.read_pickle('resultsZBoson/dataframe_id_'+val+'.pkl')
             frames.append(temp)
@@ -234,24 +234,6 @@ def plot_data(data):
         out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
         params_dict = out.params.valuesdict()
 
-        # data fit
-        polynomial_mod = PolynomialModel(4)
-        gaussian_mod = GaussianModel()
-        bin_centres_array = np.asarray(bin_centres)
-        pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=8100000, center=91.18, sigma=2.7)
-        model = polynomial_mod + gaussian_mod
-        out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
-
-        # background part of fit
-        params_dict = out.params.valuesdict()
-        c0 = params_dict['c0']
-        c1 = params_dict['c1']
-        c2 = params_dict['c2']
-        c3 = params_dict['c3']
-        c4 = params_dict['c4']
-        background = c0 + c1 * bin_centres_array + c2 * bin_centres_array ** 2 + c3 * bin_centres_array ** 3 + c4 * bin_centres_array ** 4
-
         signal_x = None
         if signal_format == 'line':
             signal_x, _ = np.histogram(data[signal][x_variable].values, bins=bins,
@@ -260,8 +242,8 @@ def plot_data(data):
             signal_x = data[signal][x_variable].values
             signal_weights = data[signal].totalWeight.values
             signal_color = ZBosonSamples.samples[signal]['color']
-
-        signal_x_reshaped = data_x - background
+            signal_x_reshaped, _ = np.histogram(data[signal][x_variable].values, bins=bins,
+                                       weights=data[signal].totalWeight.values)
 
         mc_x = []
         mc_weights = []
@@ -298,8 +280,6 @@ def plot_data(data):
                            label=signal)
         main_axes.bar(bin_centres, 2 * mc_x_err, bottom=mc_x_tot - mc_x_err, alpha=0.5, color='none', hatch="////",
                       width=h_bin_width, label='Stat. Unc.')
-        main_axes.plot(bin_centres, out.best_fit, '-r', label='Sig+Bkg Fit')
-        main_axes.plot(bin_centres, background, '--r', label='Bkg')
 
         main_axes.set_xlim(left=h_xrange_min, right=bins[-1])
         main_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
@@ -355,11 +335,6 @@ def plot_data(data):
         if Total_SM_label:
             new_handles.append(handles[labels.index('Total SM')])
             new_labels.append('Total SM')
-        else:
-            new_handles.append(handles[labels.index('Sig+Bkg Fit')])
-            new_handles.append(handles[labels.index('Bkg')])
-            new_labels.append('Sig+Bkg Fit')
-            new_labels.append('Bkg')
         if signal is not None:
             new_handles.append(handles[labels.index(signal)])
             new_labels.append(signal_label)
@@ -369,26 +344,25 @@ def plot_data(data):
         # TODO: Plot Data / Sim
 
         # *************
-        # Data-Bkg plot
+        # Data / MC plot
         # *************
 
 
         plt.axes([0.1, 0.1, 0.85, 0.2])  # (left, bottom, width, height)
         ratio_axes = plt.gca()
         ratio_axes.yaxis.set_major_locator(MaxNLocator(nbins='auto', symmetric=True))
-        ratio_axes.errorbar(x=bin_centres, y=signal_x_reshaped, yerr=data_x_errors, fmt='ko')
-        ratio_axes.plot(bin_centres, out.best_fit - background, '-r')
-        ratio_axes.plot(bin_centres, background - background, '--r')
+        # TODO: How do I make x and y the same length
+        ratio_axes.errorbar(x=bin_centres, y=data_x / signal_x_reshaped, fmt='ko') # TODO: yerr=data_x_errors produce error bars that are too big
         ratio_axes.set_xlim(left=h_xrange_min, right=bins[-1])
+        ratio_axes.plot(bins, np.ones(len(bins)), color='k')
         ratio_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
         ratio_axes.xaxis.set_label_coords(0.9, -0.2)  # (x,y) of x axis label # 0.2 down from x axis
         ratio_axes.set_xlabel(h_xlabel, fontname='sans-serif', fontsize=11)
+        ratio_axes.set_ylim(bottom=0, top=2)
+        ratio_axes.set_yticks([0, 1, 2])
         ratio_axes.tick_params(which='both', direction='in', top=True, labeltop=False, right=True, labelright=False)
         ratio_axes.yaxis.set_minor_locator(AutoMinorLocator())
-        if signal_format == 'line' or signal_format == 'hist':
-            ratio_axes.set_ylabel(r'Data/SM', fontname='sans-serif', x=1, fontsize=11)
-        else:
-            ratio_axes.set_ylabel(r'Events-Bkg', fontname='sans-serif', x=1, fontsize=11)
+        ratio_axes.set_ylabel(r'Data/SM', fontname='sans-serif', x=1, fontsize=11)
 
 
         # Generic features for both plots
@@ -397,11 +371,7 @@ def plot_data(data):
 
         plt.savefig("ZBoson_" + x_variable + ".pdf", bbox_inches='tight')
 
-
-        print('chi^2 = ' + str(out.chisqr))
-        print('gaussian centre = ' + str(params_dict['center']))
-        print('gaussian sigma = ' + str(params_dict['sigma']))
-        print('gaussian fwhm = ' + str(params_dict['fwhm']))
+        print('gaussian centre = '+str(params_dict['center']))
 
     return signal_x, mc_x_tot
 
