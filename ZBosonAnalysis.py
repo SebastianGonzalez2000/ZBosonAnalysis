@@ -31,7 +31,7 @@ save_results = 'pickle' # 'h5' or 'csv' or 'pickle' or None
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = 1 # reduce this is you want the code to run quicker
+fraction = 0.01 # reduce this is you want the code to run quicker
 
 tuple_path = "/data/newhouse/open-data/atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/2lep/"  # web address
 
@@ -252,24 +252,6 @@ def plot_data(data):
         c4 = params_dict['c4']
         background = c0 + c1 * bin_centres_array + c2 * bin_centres_array ** 2 + c3 * bin_centres_array ** 3 + c4 * bin_centres_array ** 4
 
-        # data fit
-        polynomial_mod = PolynomialModel(4)
-        gaussian_mod = GaussianModel()
-        bin_centres_array = np.asarray(bin_centres)
-        pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=8100000, center=91.18, sigma=2.7)
-        model = polynomial_mod + gaussian_mod
-        out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
-
-        # background part of fit
-        params_dict = out.params.valuesdict()
-        c0 = params_dict['c0']
-        c1 = params_dict['c1']
-        c2 = params_dict['c2']
-        c3 = params_dict['c3']
-        c4 = params_dict['c4']
-        background = c0 + c1 * bin_centres_array + c2 * bin_centres_array ** 2 + c3 * bin_centres_array ** 3 + c4 * bin_centres_array ** 4
-
         signal_x = None
         if signal_format == 'line':
             signal_x, _ = np.histogram(data[signal][x_variable].values, bins=bins,
@@ -352,6 +334,8 @@ def plot_data(data):
         plt.text(0.015, 0.86, r'$\sqrt{s}=13\,\mathrm{TeV},\;\int L\,dt=$' + lumi_used + '$\,\mathrm{fb}^{-1}$',
                  ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
         plt.text(0.015, 0.78, plot_label, ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
+        plt.text(0.015, 0.72, r'$m_Z = $' + str(params_dict['center']) + ' GeV', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
+                 fontsize=10)
 
         # Create new legend handles but use the colors from the existing ones
         handles, labels = main_axes.get_legend_handles_labels()
