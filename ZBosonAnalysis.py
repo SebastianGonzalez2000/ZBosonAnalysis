@@ -31,11 +31,11 @@ save_results = None # 'h5' or 'csv' or 'pickle' or None
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = 0.01 # reduce this is you want the code to run quicker
+fraction = 0.1 # reduce this is you want the code to run quicker
 
 tuple_path = "/Users/sebastiangonzalez/Desktop/Atlas_Data_Sets/"  # Seb's address
 
-stack_order = ['single top', 'Ztautau', 'W+jets', 'ttbar', 'Diboson']  # put smallest contribution first, then increase
+stack_order = ['single top', 'W+jets', 'ttbar', 'Diboson']  # put smallest contribution first, then increase
 
 
 
@@ -226,20 +226,33 @@ def plot_data(data):
         single_top_bkg, _ = np.histogram(data['single top'][x_variable].values, bins=bins)
         ttbar_bkg, _ = np.histogram(data['ttbar'][x_variable].values, bins=bins)
         w_jets_bkg, _ = np.histogram(data['W+jets'][x_variable].values, bins=bins)
-        z_tautau_bkg, _ = np.histogram(data['Ztautau'][x_variable].values, bins=bins)
-        background = diboson_bkg + single_top_bkg + ttbar_bkg + w_jets_bkg + z_tautau_bkg
+        background = diboson_bkg + single_top_bkg + ttbar_bkg + w_jets_bkg
         data_x_without_bkg = data_x - background
         data_x_errors = np.sqrt(data_x)
 
         # data fit
+        #TODO: subtract bkg?
+
         polynomial_mod = PolynomialModel(4)
         gaussian_mod = GaussianModel()
         bin_centres_array = np.asarray(bin_centres)
         pars = polynomial_mod.guess(data_x_without_bkg, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=10000, center=91.18, sigma=2.7)
+        pars += gaussian_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=100000, center=91.18, sigma=2.7)
         model = polynomial_mod + gaussian_mod
         out = model.fit(data_x_without_bkg, pars, x=bin_centres_array, weights=1 / data_x_errors)
         params_dict = out.params.valuesdict()
+
+        '''
+        polynomial_mod = PolynomialModel(4)
+        gaussian_mod = GaussianModel()
+        bin_centres_array = np.asarray(bin_centres)
+        pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
+        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=100000, center=91.18, sigma=2.7)
+        model = polynomial_mod + gaussian_mod
+        out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
+        params_dict = out.params.valuesdict()
+        '''
+
 
         signal_x = None
         if signal_format == 'line':
@@ -369,7 +382,7 @@ def plot_data(data):
         ratio_axes.set_yticks([0, 1, 2])
         ratio_axes.tick_params(which='both', direction='in', top=True, labeltop=False, right=True, labelright=False)
         ratio_axes.yaxis.set_minor_locator(AutoMinorLocator())
-        ratio_axes.set_ylabel(r'Data/SM', fontname='sans-serif', x=1, fontsize=11)
+        ratio_axes.set_ylabel(r'Data / Pred', fontname='sans-serif', x=1, fontsize=11)
 
 
         # Generic features for both plots
@@ -378,7 +391,7 @@ def plot_data(data):
 
         plt.savefig("ZBoson_" + x_variable + ".pdf", bbox_inches='tight')
 
-        print('gaussian centre = '+str(params_dict['center']))
+        print('Mass of Z Boson = '+str(params_dict['center'])+ 'GeV')
 
     return signal_x, mc_x_tot
 
