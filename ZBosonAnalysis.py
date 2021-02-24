@@ -29,11 +29,12 @@ class CustomTicker(LogFormatterSciNotation):
 
 save_results = None # 'h5' or 'csv' or 'pickle' or None
 
-load_histograms = True
+load_histograms = False
+store_histograms = True
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = .001 # reduce this is you want the code to run quicker
+fraction = .01 # reduce this is you want the code to run quicker
 
 tuple_path = "/data/newhouse/open-data/atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/2lep/"  # web address
 
@@ -223,59 +224,88 @@ def plot_data(data):
         bins = [h_xrange_min + x * h_bin_width for x in range(h_num_bins + 1)]
         bin_centres = [h_xrange_min + h_bin_width / 2 + x * h_bin_width for x in range(h_num_bins)]
 
-        store_histograms = True
         if store_histograms:
             stored_histos = {}
 
-        # if load_histograms:
-        #     bins = 
+        if load_histograms: # not doing line for now
+            npzfile = np.load(f'histograms/{x_variable}_hist.npz')
+            # load bins
+            loaded_bins = npzfile['bins'] 
+            if not np.array_equal(bins, loaded_bins):
+                print('Bins mismatch. That\'s a problem')
+                raise Exception
 
-
-        # ======== This creates histograms for the raw data events ======== #
-        # no weights necessary (it's data)
-        data_x, _ = np.histogram(data['data'][x_variable].values, bins=bins)
-        data_x_errors = np.sqrt(data_x)
-        if store_histograms: stored_histos['data'] = data_x # saving histograms for later loading
-
-        # ======== This creates histograms for signal simulation (Z->ll) ======== #
-        # need to consider the event weights here
-        signal_x = None
-        if signal_format == 'line':
-            signal_x, _ = np.histogram(data[signal][x_variable].values, bins=bins,
-                                       weights=data[signal].totalWeight.values)
-        elif signal_format == 'hist':
-            signal_x = data[signal][x_variable].values
-            signal_weights = data[signal].totalWeight.values
+            # load data
+            data_x = npzfile['data'] 
+            data_x_errors = np.sqrt(data_x)
+            # load weighted signal
+            signal_x_reshaped = npzfile[signal] 
             signal_color = ZBosonSamples.samples[signal]['color']
-            signal_x_reshaped, _ = np.histogram(data[signal][x_variable].values, bins=bins,
-                                       weights=data[signal].totalWeight.values)
-            if store_histograms: stored_histos[signal] = signal_x_reshaped # saving histograms for later loading
+            # load backgrounds
+            mc_x_heights_list = []
+            # mc_weights = []
+            mc_colors = []
+            mc_labels = []
+            mc_x_tot = np.zeros(len(bin_centres))
+            for s in stack_order:
+                if not s in npzfile: continue
+                mc_labels.append(s)
+                # mc_x.append(data[s][x_variable].values)
+                mc_colors.append(ZBosonSamples.samples[s]['color'])
+                # mc_weights.append(data[s].totalWeight.values)
+                mc_x_heights = npzfile[s]
+                mc_x_heights_list.append(mc_x_heights)
+                mc_x_tot = np.add(mc_x_tot, mc_x_heights)
+            mc_x_err = np.sqrt(mc_x_tot)
 
-        # ======== This creates histograms for all of the background simulation ======== #
-        # weights are also necessary here, since we produce an arbitrary number of MC events
-        mc_x = []
-        mc_weights = []
-        mc_colors = []
-        mc_labels = []
-        mc_x_tot = np.zeros(len(bin_centres))
+        else:
+            # ======== This creates histograms for the raw data events ======== #
+            # no weights necessary (it's data)
+            data_x, _ = np.histogram(data['data'][x_variable].values, bins=bins)
+            data_x_errors = np.sqrt(data_x)
+            if store_histograms: stored_histos['data'] = data_x # saving histograms for later loading
 
-        for s in stack_order:
-            if not s in data: continue
-            mc_labels.append(s)
-            mc_x.append(data[s][x_variable].values)
-            mc_colors.append(ZBosonSamples.samples[s]['color'])
-            mc_weights.append(data[s].totalWeight.values)
-            mc_x_heights, _ = np.histogram(data[s][x_variable].values, bins=bins, weights=data[s].totalWeight.values) #mc_heights?
-            mc_x_tot = np.add(mc_x_tot, mc_x_heights)
-            if store_histograms: stored_histos[s] = mc_x_heights #saving histograms for later loading
+            # ======== This creates histograms for signal simulation (Z->ll) ======== #
+            # need to consider the event weights here
+            signal_x = None
+            if signal_format == 'line':
+                signal_x, _ = np.histogram(data[signal][x_variable].values, bins=bins,
+                                        weights=data[signal].totalWeight.values)
+            elif signal_format == 'hist':
+                signal_x = data[signal][x_variable].values
+                signal_weights = data[signal].totalWeight.values
+                signal_color = ZBosonSamples.samples[signal]['color']
+                signal_x_reshaped, _ = np.histogram(data[signal][x_variable].values, bins=bins,
+                                        weights=data[signal].totalWeight.values)
+                if store_histograms: stored_histos[signal] = signal_x_reshaped # saving histograms for later loading
 
-        mc_x_err = np.sqrt(mc_x_tot)
+            # ======== This creates histograms for all of the background simulation ======== #
+            # weights are also necessary here, since we produce an arbitrary number of MC events
+            mc_x_heights_list = []
+            mc_weights = []
+            mc_colors = []
+            mc_labels = []
+            mc_x_tot = np.zeros(len(bin_centres))
 
-        if store_histograms:
-            # save all histograms in npz format. different file for each variable. bins are common
-            os.makedirs('histograms', exist_ok=True)
-            np.savez(f'histograms/{x_variable}_hist.npz', bins=bins, **stored_histos)
-        # ======== Now we start doing the fit ======== #
+            for s in stack_order:
+                if not s in data: continue
+                if data[s].empty: continue
+                mc_labels.append(s)
+                # mc_x.append(data[s][x_variable].values)
+                mc_colors.append(ZBosonSamples.samples[s]['color'])
+                mc_weights.append(data[s].totalWeight.values)
+                mc_x_heights, _ = np.histogram(data[s][x_variable].values, bins=bins, weights=data[s].totalWeight.values) #mc_heights?
+                mc_x_heights_list.append(mc_x_heights)
+                mc_x_tot = np.add(mc_x_tot, mc_x_heights)
+                if store_histograms: stored_histos[s] = mc_x_heights #saving histograms for later loading
+
+            mc_x_err = np.sqrt(mc_x_tot)
+
+            if store_histograms:
+                # save all histograms in npz format. different file for each variable. bins are common
+                os.makedirs('histograms', exist_ok=True)
+                np.savez(f'histograms/{x_variable}_hist.npz', bins=bins, **stored_histos)
+            # ======== Now we start doing the fit ======== #
 
         # diboson_bkg, _ = np.histogram(data['Diboson'][x_variable].values, bins=bins)
         # single_top_bkg, _ = np.histogram(data['single top'][x_variable].values, bins=bins)
@@ -324,7 +354,12 @@ def plot_data(data):
         plt.axes([0.1, 0.3, 0.85, 0.65])  # (left, bottom, width, height)
         main_axes = plt.gca()
         main_axes.errorbar(x=bin_centres, y=data_x, yerr=data_x_errors, fmt='ko', label='Data')
-        mc_heights = main_axes.hist(mc_x, bins=bins, weights=mc_weights, stacked=True, color=mc_colors, label=mc_labels)
+        # this effectively makes a stacked histogram
+        bottoms = np.zeros_like(bin_centres)
+        for mc_x_height, mc_color, mc_label in zip(mc_x_heights_list, mc_colors, mc_labels) :
+            main_axes.bar(bin_centres, mc_x_height, bottom=bottoms, color=mc_color, label=mc_label, width=h_bin_width)
+            bottoms = np.add(bottoms, mc_x_height)
+
         if Total_SM_label:
             totalSM_handle, = main_axes.step(bins, np.insert(mc_x_tot, 0, mc_x_tot[0]), color='black')
         if signal_format == 'line':
@@ -332,7 +367,7 @@ def plot_data(data):
                            linestyle='--',
                            label=signal)
         elif signal_format == 'hist':
-            main_axes.hist(signal_x, bins=bins, bottom=mc_x_tot, weights=signal_weights, color=signal_color,
+            main_axes.hist(signal_x_reshaped, bins=bins, bottom=mc_x_tot, color=signal_color,
                            label=signal)
         main_axes.bar(bin_centres, 2 * mc_x_err, bottom=mc_x_tot - mc_x_err, alpha=0.5, color='none', hatch="////",
                       width=h_bin_width, label='Stat. Unc.')
@@ -350,9 +385,10 @@ def plot_data(data):
 
         if h_log_y:
             main_axes.set_yscale('log')
-            smallest_contribution = mc_heights[0][0] # TODO: mc_heights or mc_x_heights
+            smallest_contribution = mc_x_heights_list[0] # TODO: mc_heights or mc_x_heights
             smallest_contribution.sort()
             bottom = smallest_contribution[-2]
+            if bottom == 0: bottom = 0.01 # log doesn't like zero
             top = np.amax(data_x) * h_log_top_margin
             main_axes.set_ylim(bottom=bottom, top=top)
             main_axes.yaxis.set_major_formatter(CustomTicker())
@@ -429,6 +465,7 @@ def plot_data(data):
 
         print('Mass of Z Boson = '+str(params_dict['center'])+ 'GeV')
 
+    if load_histograms: return None, None
     return signal_x, mc_x_tot
 
 
@@ -436,7 +473,9 @@ if __name__ == "__main__":
     start = time.time()
     if not load_histograms:
         data = get_data_from_files()
-    signal_yields, background_yields = plot_data(data)
+        signal_yields, background_yields = plot_data(data)
+    else:
+        plot_data(None)
     elapsed = time.time() - start
     print("Time taken: "+str(elapsed))
 
