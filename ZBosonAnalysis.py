@@ -29,14 +29,14 @@ class CustomTicker(LogFormatterSciNotation):
 
 save_results = None # 'h5' or 'csv' or 'pickle' or None
 
-load_histograms = False
+load_histograms = True
 store_histograms = True
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = .01 # reduce this is you want the code to run quicker
+fraction = .1 # reduce this is you want the code to run quicker
 
-tuple_path = "/data/newhouse/open-data/atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/2lep/"  # web address
+tuple_path = "/Volumes/ROBIN/atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/2lep/"  # web address
 
 stack_order = ['single top', 'W+jets', 'ttbar', 'Diboson']  # put smallest contribution first, then increase
 
@@ -228,7 +228,7 @@ def plot_data(data):
             stored_histos = {}
 
         if load_histograms: # not doing line for now
-            npzfile = np.load(f'histograms/{x_variable}_hist.npz')
+            npzfile = np.load(f'histograms/{x_variable}_hist_{fraction}.npz')
             # load bins
             loaded_bins = npzfile['bins'] 
             if not np.array_equal(bins, loaded_bins):
@@ -357,20 +357,25 @@ def plot_data(data):
         # this effectively makes a stacked histogram
         bottoms = np.zeros_like(bin_centres)
         for mc_x_height, mc_color, mc_label in zip(mc_x_heights_list, mc_colors, mc_labels) :
-            main_axes.bar(bin_centres, mc_x_height, bottom=bottoms, color=mc_color, label=mc_label, width=h_bin_width)
+            main_axes.bar(bin_centres, mc_x_height, bottom=bottoms, color=mc_color, label=mc_label, width=h_bin_width*1.01)
             bottoms = np.add(bottoms, mc_x_height)
 
-        if Total_SM_label:
-            totalSM_handle, = main_axes.step(bins, np.insert(mc_x_tot, 0, mc_x_tot[0]), color='black')
         if signal_format == 'line':
             main_axes.step(bins, np.insert(signal_x, 0, signal_x[0]), color=ZBosonSamples.samples[signal]['color'],
                            linestyle='--',
                            label=signal)
         elif signal_format == 'hist':
-            main_axes.hist(signal_x_reshaped, bins=bins, bottom=mc_x_tot, color=signal_color,
-                           label=signal)
-        main_axes.bar(bin_centres, 2 * mc_x_err, bottom=mc_x_tot - mc_x_err, alpha=0.5, color='none', hatch="////",
-                      width=h_bin_width, label='Stat. Unc.')
+            main_axes.bar(bin_centres, signal_x_reshaped, bottom=bottoms, color=signal_color, label=signal,
+                          width=h_bin_width*1.01)
+            bottoms = np.add(bottoms, signal_x_reshaped)
+
+        mc_x_err = np.sqrt(mc_x_tot)
+        main_axes.bar(bin_centres, 2 * mc_x_err, bottom=bottoms - mc_x_err, alpha=0.5, color='none', hatch="////",
+                      width=h_bin_width*1.01, label='Stat. Unc.')
+
+        mc_x_tot = bottoms
+        if Total_SM_label:
+            totalSM_handle, = main_axes.step(bins, np.insert(mc_x_tot, 0, mc_x_tot[0]), color='black')
 
         main_axes.set_xlim(left=h_xrange_min, right=bins[-1])
         main_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
@@ -388,7 +393,7 @@ def plot_data(data):
             smallest_contribution = mc_x_heights_list[0] # TODO: mc_heights or mc_x_heights
             smallest_contribution.sort()
             bottom = smallest_contribution[-2]
-            if bottom == 0: bottom = 0.01 # log doesn't like zero
+            if bottom == 0: bottom = 0.001 # log doesn't like zero
             top = np.amax(data_x) * h_log_top_margin
             main_axes.set_ylim(bottom=bottom, top=top)
             main_axes.yaxis.set_major_formatter(CustomTicker())
@@ -413,10 +418,13 @@ def plot_data(data):
         handles, labels = main_axes.get_legend_handles_labels()
         if signal_format == 'line':
             handles[labels.index(signal)] = Line2D([], [], c=ZBosonSamples.samples[signal]['color'], linestyle='dashed')
+        uncertainty_handle = mpatches.Patch(facecolor='none', hatch='////')
         if Total_SM_label:
-            uncertainty_handle = mpatches.Patch(facecolor='none', hatch='////')
             handles.append((totalSM_handle, uncertainty_handle))
             labels.append('Total SM')
+        else:
+            handles.append(uncertainty_handle)
+            labels.append('Stat. Unc.')
 
         # specify order within legend
         new_handles = [handles[labels.index('Data')]]
@@ -424,12 +432,15 @@ def plot_data(data):
         for s in reversed(stack_order):
             new_handles.append(handles[labels.index(s)])
             new_labels.append(s)
-        if Total_SM_label:
-            new_handles.append(handles[labels.index('Total SM')])
-            new_labels.append('Total SM')
         if signal is not None:
             new_handles.append(handles[labels.index(signal)])
             new_labels.append(signal_label)
+        if Total_SM_label:
+            new_handles.append(handles[labels.index('Total SM')])
+            new_labels.append('Total SM')
+        else:
+            new_handles.append(handles[labels.index('Stat. Unc.')])
+            new_labels.append('Stat. Unc.')
         main_axes.legend(handles=new_handles, labels=new_labels, frameon=False, loc=h_legend_loc)
 
 
