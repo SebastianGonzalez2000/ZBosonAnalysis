@@ -5,7 +5,7 @@ import time
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-from lmfit.models import PolynomialModel, GaussianModel
+from lmfit.models import PolynomialModel, GaussianModel, DoniachModel, ExponentialGaussianModel, VoigtModel
 import matplotlib.patches as mpatches  # for "Total SM & uncertainty" merged legend handle
 from matplotlib.lines import Line2D  # for dashed line in legend
 from matplotlib.ticker import MaxNLocator, AutoMinorLocator, LogLocator, LogFormatterSciNotation  # for minor ticks
@@ -31,9 +31,11 @@ save_results = None # 'h5' or 'csv' or 'pickle' or None
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = 0.1 # reduce this is you want the code to run quicker
+fraction = 0.00089 # reduce this is you want the code to run quicker
 
-tuple_path = "/Users/sebastiangonzalez/Desktop/Atlas_Data_Sets/"  # Seb's address
+lumi_used = lumi * fraction
+
+tuple_path = "/Users/sebastiangonzalez/Desktop/ATLAS_REX_Project/"  # Seb's address
 
 stack_order = ['single top', 'W+jets', 'ttbar', 'Diboson']  # put smallest contribution first, then increase
 
@@ -117,6 +119,11 @@ def get_xsec_weight(totalWeight,sample):
     weight = (lumi*1000*info["xsec"])/(info["sumw"]*info["red_eff"]) #*1000 to go from fb-1 to pb-1
     weight *= totalWeight
     return weight
+
+def mychisqr(resids,heights):
+    errors = np.sqrt(heights).astype(int)
+    errors[errors == 0] = 1 #should actually use Poisson errors below N~10
+    return np.sum(np.square(resids/errors))
 
 
 def read_file(path, sample):
@@ -221,37 +228,7 @@ def plot_data(data):
         bins = [h_xrange_min + x * h_bin_width for x in range(h_num_bins + 1)]
         bin_centres = [h_xrange_min + h_bin_width / 2 + x * h_bin_width for x in range(h_num_bins)]
 
-        data_x, _ = np.histogram(data['data'][x_variable].values, bins=bins)
-        diboson_bkg, _ = np.histogram(data['Diboson'][x_variable].values, bins=bins)
-        single_top_bkg, _ = np.histogram(data['single top'][x_variable].values, bins=bins)
-        ttbar_bkg, _ = np.histogram(data['ttbar'][x_variable].values, bins=bins)
-        w_jets_bkg, _ = np.histogram(data['W+jets'][x_variable].values, bins=bins)
-        background = diboson_bkg + single_top_bkg + ttbar_bkg + w_jets_bkg
-        data_x_without_bkg = data_x - background
-        data_x_errors = np.sqrt(data_x)
 
-        # data fit
-        #TODO: subtract bkg?
-
-        polynomial_mod = PolynomialModel(4)
-        gaussian_mod = GaussianModel()
-        bin_centres_array = np.asarray(bin_centres)
-        pars = polynomial_mod.guess(data_x_without_bkg, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=100000, center=91.18, sigma=2.7)
-        model = polynomial_mod + gaussian_mod
-        out = model.fit(data_x_without_bkg, pars, x=bin_centres_array, weights=1 / data_x_errors)
-        params_dict = out.params.valuesdict()
-
-        '''
-        polynomial_mod = PolynomialModel(4)
-        gaussian_mod = GaussianModel()
-        bin_centres_array = np.asarray(bin_centres)
-        pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=100000, center=91.18, sigma=2.7)
-        model = polynomial_mod + gaussian_mod
-        out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
-        params_dict = out.params.valuesdict()
-        '''
 
 
         signal_x = None
@@ -272,14 +249,63 @@ def plot_data(data):
         mc_x_tot = np.zeros(len(bin_centres))
 
         for s in stack_order:
+            if s not in data.keys():
+                continue
+            if data[s].empty:
+                continue
+
             mc_labels.append(s)
             mc_x.append(data[s][x_variable].values)
             mc_colors.append(ZBosonSamples.samples[s]['color'])
             mc_weights.append(data[s].totalWeight.values)
-            mc_x_heights, _ = np.histogram(data[s][x_variable].values, bins=bins, weights=data[s].totalWeight.values) #mc_heights?
+            mc_x_heights, _ = np.histogram(data[s][x_variable].values, bins=bins, weights=data[s].totalWeight.values)
             mc_x_tot = np.add(mc_x_tot, mc_x_heights)
 
         mc_x_err = np.sqrt(mc_x_tot)
+
+        data_x, _ = np.histogram(data['data'][x_variable].values, bins=bins)
+
+        data_x_without_bkg = data_x - mc_x_tot
+
+        data_x_errors = np.sqrt(data_x)
+
+        # data fit
+
+        # get rid of zero errors (maybe messy) : TODO a better way to do this?
+        for i, e in enumerate(data_x_errors):
+            if e == 0: data_x_errors[i] = np.inf
+        if 0 in data_x_errors:
+            print('please don\'t divide by zero')
+            raise Exception
+
+        bin_centres_array = np.asarray(bin_centres)
+
+        # *************
+        # Models
+        # *************
+
+        doniach_mod = DoniachModel()
+        pars_doniach = doniach_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=2100000 * fraction, center=90.5, sigma=2.3, height=10000 * fraction / 0.01, gamma=0)
+        doniach = doniach_mod.fit(data_x_without_bkg, pars_doniach, x=bin_centres_array, weights=1 / data_x_errors)
+        params_dict_doniach = doniach.params.valuesdict()
+
+
+        gaussian_mod = GaussianModel()
+        pars_gaussian = gaussian_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=6000000*fraction, center=90.5, sigma=3)
+        gaussian = gaussian_mod.fit(data_x_without_bkg, pars_gaussian, x=bin_centres_array, weights=1 / data_x_errors)
+        params_dict_gaussian = gaussian.params.valuesdict()
+
+
+        exponential_gaussian_mod = ExponentialGaussianModel()
+        pars = exponential_gaussian_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=6000000*fraction, center = 90.5, sigma=2.9, gamma = 1)
+        exp_gaussian = exponential_gaussian_mod.fit(data_x_without_bkg, pars, x=bin_centres_array, weights=1 / data_x_errors)
+        params_dict_exp_gaussian = exp_gaussian.params.valuesdict()
+
+
+        voigt_mod = VoigtModel()
+        pars = voigt_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=6800000*fraction, center=90.5, sigma=1.7)
+        voigt = voigt_mod.fit(data_x_without_bkg, pars, x=bin_centres_array, weights=1 / data_x_errors)
+        params_dict_voigt = voigt.params.valuesdict()
 
         # *************
         # Main plot
@@ -288,6 +314,12 @@ def plot_data(data):
         plt.axes([0.1, 0.3, 0.85, 0.65])  # (left, bottom, width, height)
         main_axes = plt.gca()
         main_axes.errorbar(x=bin_centres, y=data_x, yerr=data_x_errors, fmt='ko', label='Data')
+
+        main_axes.plot(bin_centres, doniach.best_fit, '-r')
+        main_axes.plot(bin_centres, gaussian.best_fit, '-g')
+        main_axes.plot(bin_centres, exp_gaussian.best_fit, '-y')
+        main_axes.plot(bin_centres, voigt.best_fit, '-p')
+
         mc_heights = main_axes.hist(mc_x, bins=bins, weights=mc_weights, stacked=True, color=mc_colors, label=mc_labels)
         if Total_SM_label:
             totalSM_handle, = main_axes.step(bins, np.insert(mc_x_tot, 0, mc_x_tot[0]), color='black')
@@ -314,7 +346,7 @@ def plot_data(data):
 
         if h_log_y:
             main_axes.set_yscale('log')
-            smallest_contribution = mc_heights[0][0] # TODO: mc_heights or mc_x_heights
+            smallest_contribution = mc_heights[0][0]
             smallest_contribution.sort()
             bottom = smallest_contribution[-2]
             top = np.amax(data_x) * h_log_top_margin
@@ -334,7 +366,7 @@ def plot_data(data):
         plt.text(0.015, 0.86, r'$\sqrt{s}=13\,\mathrm{TeV},\;\int L\,dt=$' + lumi_used + '$\,\mathrm{fb}^{-1}$',
                  ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
         plt.text(0.015, 0.78, plot_label, ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
-        plt.text(0.015, 0.72, r'$m_Z = $' + str(round(params_dict['center'], 4)) + ' GeV', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
+        plt.text(0.015, 0.72, r'$m_Z = $' + str(round(params_dict_doniach['center'], 4)) + ' GeV', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
                  fontsize=10)
 
         # Create new legend handles but use the colors from the existing ones
@@ -350,6 +382,8 @@ def plot_data(data):
         new_handles = [handles[labels.index('Data')]]
         new_labels = ['Data']
         for s in reversed(stack_order):
+            if s not in labels:
+                continue
             new_handles.append(handles[labels.index(s)])
             new_labels.append(s)
         if Total_SM_label:
@@ -361,8 +395,6 @@ def plot_data(data):
         main_axes.legend(handles=new_handles, labels=new_labels, frameon=False, loc=h_legend_loc)
 
 
-        # TODO: Plot Data / Sim
-
         # *************
         # Data / MC plot
         # *************
@@ -371,7 +403,6 @@ def plot_data(data):
         plt.axes([0.1, 0.1, 0.85, 0.2])  # (left, bottom, width, height)
         ratio_axes = plt.gca()
         ratio_axes.yaxis.set_major_locator(MaxNLocator(nbins='auto', symmetric=True))
-        # TODO: How do I make x and y the same length
         ratio_axes.errorbar(x=bin_centres, y=data_x / signal_x_reshaped, fmt='ko') # TODO: yerr=data_x_errors produce error bars that are too big
         ratio_axes.set_xlim(left=h_xrange_min, right=bins[-1])
         ratio_axes.plot(bins, np.ones(len(bins)), color='k')
@@ -379,7 +410,7 @@ def plot_data(data):
         ratio_axes.xaxis.set_label_coords(0.9, -0.2)  # (x,y) of x axis label # 0.2 down from x axis
         ratio_axes.set_xlabel(h_xlabel, fontname='sans-serif', fontsize=11)
         ratio_axes.set_ylim(bottom=0, top=2)
-        ratio_axes.set_yticks([0, 1, 2])
+        ratio_axes.set_yticks([0, 1])
         ratio_axes.tick_params(which='both', direction='in', top=True, labeltop=False, right=True, labelright=False)
         ratio_axes.yaxis.set_minor_locator(AutoMinorLocator())
         ratio_axes.set_ylabel(r'Data / Pred', fontname='sans-serif', x=1, fontsize=11)
@@ -391,7 +422,96 @@ def plot_data(data):
 
         plt.savefig("ZBoson_" + x_variable + ".pdf", bbox_inches='tight')
 
-        print('Mass of Z Boson = '+str(params_dict['center'])+ 'GeV')
+        # ========== Statistics ==========
+
+        # ========== Doniach ==========
+        chisqr_doniach = mychisqr(doniach.residual, data_x)
+        redchisqr_doniach = chisqr_doniach/doniach.nfree
+        center_doniach = params_dict_doniach['center']
+        sigma_doniach = params_dict_doniach['sigma']
+        amplitude_doniach = params_dict_doniach['amplitude']
+
+        # ========== Gaussian ==========
+        chisqr_gaussian = mychisqr(gaussian.residual, data_x)
+        redchisqr_gaussian = chisqr_gaussian / gaussian.nfree
+        center_gaussian = params_dict_gaussian['center']
+        sigma_gaussian = params_dict_gaussian['sigma']
+        amplitude_gaussian = params_dict_gaussian['amplitude']
+
+        # ========== Exponential Gaussian ==========
+        chisqr_exp_gaussian = mychisqr(exp_gaussian.residual, data_x)
+        redchisqr_exp_gaussian = chisqr_exp_gaussian / exp_gaussian.nfree
+        center_exp_gaussian = params_dict_exp_gaussian['center']
+        sigma_exp_gaussian = params_dict_exp_gaussian['sigma']
+        amplitude_exp_gaussian = params_dict_exp_gaussian['amplitude']
+
+        # ========== Voigt ==========
+        chisqr_voigt = mychisqr(voigt.residual, data_x)
+        redchisqr_voigt = chisqr_voigt / voigt.nfree
+        center_voigt = params_dict_voigt['center']
+        sigma_voigt = params_dict_voigt['sigma']
+        amplitude_voigt = params_dict_voigt['amplitude']
+
+
+        df_dict = {'fraction':[fraction],
+                   'luminosity':[lumi_used],
+                   'doniach chisqr':[chisqr_doniach],
+                       'doniach redchisqr':[redchisqr_doniach],
+                       'gaussian chisqr':[chisqr_gaussian],
+                       'gaussian redchisqr':[redchisqr_gaussian],
+                       'exponential gaussian chisqr':[chisqr_exp_gaussian],
+                       'exponential gaussian redchisqr':[redchisqr_exp_gaussian],
+                       'voigt chisqr':[chisqr_voigt],
+                       'voigt redchisqr':[redchisqr_voigt]}
+
+        temp = pd.DataFrame(df_dict)
+
+        fit_results = pd.read_csv('fit_results.csv')
+
+        fit_results_concat = pd.concat([fit_results, temp])
+
+        fit_results_concat.to_csv('fit_results.csv', index = False)
+
+
+        print("=====================================================")
+        print("Statistics for the Doniach Model: ")
+        print("\n")
+        print("chi^2 = " + str(chisqr_doniach))
+        print("chi^2/dof = " + str(redchisqr_doniach))
+        print("center = " + str(center_doniach))
+        print("sigma = " + str(sigma_doniach))
+        print("amplitude = " + str(amplitude_doniach))
+        print("height = " + str(params_dict_doniach['height']))
+
+        print("\n")
+        print("=====================================================")
+        print("Statistics for the Gaussian Model: ")
+        print("\n")
+        print("chi^2 = " + str(chisqr_gaussian))
+        print("chi^2/dof = " + str(redchisqr_gaussian))
+        print("center = " + str(center_gaussian))
+        print("sigma = " + str(sigma_gaussian))
+        print("amplitude = " + str(amplitude_gaussian))
+
+        print("\n")
+        print("=====================================================")
+        print("Statistics for the Exponential Gaussian Model: ")
+        print("\n")
+        print("chi^2 = " + str(chisqr_exp_gaussian))
+        print("chi^2/dof = " + str(redchisqr_exp_gaussian))
+        print("center = " + str(center_exp_gaussian))
+        print("sigma = " + str(sigma_exp_gaussian))
+        print("amplitude = " + str(amplitude_exp_gaussian))
+
+        print("\n")
+        print("=====================================================")
+        print("Statistics for the Voigt Model: ")
+        print("\n")
+        print("chi^2 = " + str(chisqr_voigt))
+        print("chi^2/dof = " + str(redchisqr_voigt))
+        print("center = " + str(center_voigt))
+        print("sigma = " + str(sigma_voigt))
+        print("amplitude = " + str(amplitude_voigt))
 
     return signal_x, mc_x_tot
 

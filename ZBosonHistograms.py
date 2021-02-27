@@ -4,7 +4,7 @@ mll = {
     'num_bins':30,
     'xrange_min': 68,
     'xlabel':r'$\mathrm{m_{ll}}$ [GeV]',
-    'log_y': True,
+    'log_y': False,
 
     # change aesthetic parameters if you want
     'y_label_x_position':-0.09, # 0.09 to the left of y axis
