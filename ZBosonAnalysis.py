@@ -34,7 +34,7 @@ store_histograms = False
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = 0.00089 # reduce this is you want the code to run quicker
+fraction = 0.0015 # reduce this is you want the code to run quicker
 
 lumi_used = lumi * fraction
 
