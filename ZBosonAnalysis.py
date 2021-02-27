@@ -29,8 +29,8 @@ class CustomTicker(LogFormatterSciNotation):
 
 save_results = None # 'h5' or 'csv' or 'pickle' or None
 
-load_histograms = True
-store_histograms = True
+load_histograms = False
+store_histograms = False
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
@@ -207,9 +207,7 @@ def plot_data(data):
     plot_label = r'$Z \rightarrow ll$'
     signal_label = plot_label
 
-    # *******************
-    # general definitions (shouldn't need to change)
-    lumi_used = str(lumi * fraction)
+
     signal = None
     for s in ZBosonSamples.samples.keys():
         if s not in stack_order and s != 'data': signal = s
@@ -308,11 +306,7 @@ def plot_data(data):
 
             mc_x_err = np.sqrt(mc_x_tot)
 
-        data_x, _ = np.histogram(data['data'][x_variable].values, bins=bins)
-
         data_x_without_bkg = data_x - mc_x_tot
-
-        data_x_errors = np.sqrt(data_x)
 
         # data fit
 
@@ -352,49 +346,11 @@ def plot_data(data):
         voigt = voigt_mod.fit(data_x_without_bkg, pars, x=bin_centres_array, weights=1 / data_x_errors)
         params_dict_voigt = voigt.params.valuesdict()
 
-            if store_histograms:
-                # save all histograms in npz format. different file for each variable. bins are common
-                os.makedirs('histograms', exist_ok=True)
-                np.savez(f'histograms/{x_variable}_hist.npz', bins=bins, **stored_histos)
+        if store_histograms:
+            # save all histograms in npz format. different file for each variable. bins are common
+            os.makedirs('histograms', exist_ok=True)
+            np.savez(f'histograms/{x_variable}_hist.npz', bins=bins, **stored_histos)
             # ======== Now we start doing the fit ======== #
-
-        # diboson_bkg, _ = np.histogram(data['Diboson'][x_variable].values, bins=bins)
-        # single_top_bkg, _ = np.histogram(data['single top'][x_variable].values, bins=bins)
-        # ttbar_bkg, _ = np.histogram(data['ttbar'][x_variable].values, bins=bins)
-        # w_jets_bkg, _ = np.histogram(data['W+jets'][x_variable].values, bins=bins)
-        # background = diboson_bkg + single_top_bkg + ttbar_bkg + w_jets_bkg
-        data_x_without_bkg = data_x - mc_x_tot
-
-
-        # get rid of zero errors (maybe messy) : TODO a better way to do this?
-        for i, e in enumerate(data_x_errors):
-            if e == 0: data_x_errors[i] = np.inf
-        if 0 in data_x_errors:
-            print('please don\'t divide by zero')
-            raise Exception
-
-        # data fit
-        #TODO: subtract bkg?
-
-        polynomial_mod = PolynomialModel(4)
-        gaussian_mod = GaussianModel()
-        bin_centres_array = np.asarray(bin_centres)
-        pars = polynomial_mod.guess(data_x_without_bkg, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=100000, center=91.18, sigma=2.7)
-        model = polynomial_mod + gaussian_mod
-        out = model.fit(data_x_without_bkg, pars, x=bin_centres_array, weights=1 / data_x_errors)
-        params_dict = out.params.valuesdict()
-
-        '''
-        polynomial_mod = PolynomialModel(4)
-        gaussian_mod = GaussianModel()
-        bin_centres_array = np.asarray(bin_centres)
-        pars = polynomial_mod.guess(data_x, x=bin_centres_array, c0=data_x.max(), c1=0, c2=0, c3=0, c4=0)
-        pars += gaussian_mod.guess(data_x, x=bin_centres_array, amplitude=100000, center=91.18, sigma=2.7)
-        model = polynomial_mod + gaussian_mod
-        out = model.fit(data_x, pars, x=bin_centres_array, weights=1 / data_x_errors)
-        params_dict = out.params.valuesdict()
-        '''
 
 
 
@@ -417,7 +373,7 @@ def plot_data(data):
         main_axes.plot(bin_centres, exp_gaussian.best_fit, '-y')
         main_axes.plot(bin_centres, voigt.best_fit, '-p')
 
-        mc_heights = main_axes.hist(mc_x, bins=bins, weights=mc_weights, stacked=True, color=mc_colors, label=mc_labels)
+        #mc_heights = main_axes.hist(mc_x, bins=bins, weights=mc_weights, stacked=True, color=mc_colors, label=mc_labels)
         if Total_SM_label:
             totalSM_handle, = main_axes.step(bins, np.insert(mc_x_tot, 0, mc_x_tot[0]), color='black')
         if signal_format == 'line':
@@ -434,19 +390,11 @@ def plot_data(data):
                       width=h_bin_width*1.01, label='Stat. Unc.')
 
         mc_x_tot = bottoms
-        if Total_SM_label:
-            totalSM_handle, = main_axes.step(bins, np.insert(mc_x_tot, 0, mc_x_tot[0]), color='black')
 
         main_axes.set_xlim(left=h_xrange_min, right=bins[-1])
         main_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
         main_axes.tick_params(which='both', direction='in', top=True, labeltop=False, labelbottom=False, right=True,
                               labelright=False)
-        if len(h_xlabel.split('[')) > 1:
-            y_units = ' ' + h_xlabel[h_xlabel.find("[") + 1:h_xlabel.find("]")]
-        else:
-            y_units = ''
-        main_axes.set_ylabel(r'Events / bin' , fontname='sans-serif',
-                             horizontalalignment='right', y=1.0, fontsize=11)
 
         if h_log_y:
             main_axes.set_yscale('log')
