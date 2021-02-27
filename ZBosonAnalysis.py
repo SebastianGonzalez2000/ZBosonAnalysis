@@ -384,8 +384,6 @@ def plot_data(data):
             main_axes.bar(bin_centres, signal_x_reshaped, bottom=bottoms, color=signal_color, label=signal,
                           width=h_bin_width*1.01)
             bottoms = np.add(bottoms, signal_x_reshaped)
-
-        mc_x_err = np.sqrt(mc_x_tot)
         main_axes.bar(bin_centres, 2 * mc_x_err, bottom=bottoms - mc_x_err, alpha=0.5, color='none', hatch="////",
                       width=h_bin_width*1.01, label='Stat. Unc.')
 
@@ -416,7 +414,7 @@ def plot_data(data):
                  fontsize=13)
         plt.text(0.015, 0.9, 'for education', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
                  style='italic', fontsize=8)
-        plt.text(0.015, 0.86, r'$\sqrt{s}=13\,\mathrm{TeV},\;\int L\,dt=$' + lumi_used + '$\,\mathrm{fb}^{-1}$',
+        plt.text(0.015, 0.86, r'$\sqrt{s}=13\,\mathrm{TeV},\;\int L\,dt=$' + str(lumi_used) + '$\,\mathrm{fb}^{-1}$',
                  ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
         plt.text(0.015, 0.78, plot_label, ha="left", va="top", family='sans-serif', transform=main_axes.transAxes)
         plt.text(0.015, 0.72, r'$m_Z = $' + str(round(params_dict_doniach['center'], 4)) + ' GeV', ha="left", va="top", family='sans-serif', transform=main_axes.transAxes,
