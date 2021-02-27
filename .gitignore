@@ -1,2 +1,5 @@
 /main.py
 resultsZBoson/
+.idea/
+histograms
+*.pyc
