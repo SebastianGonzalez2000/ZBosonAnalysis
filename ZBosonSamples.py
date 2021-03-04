@@ -17,7 +17,7 @@ samples = {
 
     'Z+jets': {
         'list': ['Zee', 'Zmumu', 'Ztautau'],
-        'color': '#0000ff'
+        'color': '#ffa500'
     },
 
     'ttbar': {

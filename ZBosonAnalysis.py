@@ -34,9 +34,9 @@ store_histograms = False
 
 lumi = 10  # 10 fb-1 for data_A,B,C,D
 
-fraction = 0.0015 # reduce this is you want the code to run quicker
+#fraction = 0.00083 # reduce this is you want the code to run quicker
 
-lumi_used = lumi * fraction
+#lumi_used = lumi * fraction
 
 tuple_path = "/Users/sebastiangonzalez/Desktop/ATLAS_REX_Project/"  # Seb's address
 
@@ -368,12 +368,11 @@ def plot_data(data):
             bottoms = np.add(bottoms, mc_x_height)
 
 
-        main_axes.plot(bin_centres, doniach.best_fit, '-r')
-        main_axes.plot(bin_centres, gaussian.best_fit, '-g')
-        main_axes.plot(bin_centres, exp_gaussian.best_fit, '-y')
-        main_axes.plot(bin_centres, voigt.best_fit, '-p')
+        main_axes.plot(bin_centres, doniach.best_fit, '-r', label='Doniach')
+        main_axes.plot(bin_centres, gaussian.best_fit, '-g', label='Gaussian')
+        main_axes.plot(bin_centres, exp_gaussian.best_fit, '-y', label='Exponential Gaussian')
+        main_axes.plot(bin_centres, voigt.best_fit, '--', label='Voigt')
 
-        #mc_heights = main_axes.hist(mc_x, bins=bins, weights=mc_weights, stacked=True, color=mc_colors, label=mc_labels)
         if Total_SM_label:
             totalSM_handle, = main_axes.step(bins, np.insert(mc_x_tot, 0, mc_x_tot[0]), color='black')
         if signal_format == 'line':
@@ -433,8 +432,12 @@ def plot_data(data):
             labels.append('Stat. Unc.')
 
         # specify order within legend
-        new_handles = [handles[labels.index('Data')]]
-        new_labels = ['Data']
+        new_handles = [handles[labels.index('Data')],
+                       handles[labels.index('Doniach')],
+                       handles[labels.index('Gaussian')],
+                       handles[labels.index('Exponential Gaussian')],
+                       handles[labels.index('Voigt')]]
+        new_labels = ['Data', 'Doniach', 'Gaussian', 'Exponential Gaussian', 'Voigt']
         for s in reversed(stack_order):
             if s not in labels:
                 continue
@@ -449,7 +452,7 @@ def plot_data(data):
         else:
             new_handles.append(handles[labels.index('Stat. Unc.')])
             new_labels.append('Stat. Unc.')
-        main_axes.legend(handles=new_handles, labels=new_labels, frameon=False, loc=h_legend_loc)
+        main_axes.legend(handles=new_handles, labels=new_labels, frameon=False, loc=h_legend_loc, fontsize='x-small')
 
 
         # *************
@@ -482,44 +485,61 @@ def plot_data(data):
         # ========== Statistics ==========
 
         # ========== Doniach ==========
-        chisqr_doniach = mychisqr(doniach.residual, data_x)
+        chisqr_doniach = mychisqr(doniach.residual, doniach.best_fit)
         redchisqr_doniach = chisqr_doniach/doniach.nfree
         center_doniach = params_dict_doniach['center']
         sigma_doniach = params_dict_doniach['sigma']
-        amplitude_doniach = params_dict_doniach['amplitude']
+
+        rel_unc_center_doniach = doniach.params['center'].stderr / doniach.params['center'].value
+        rel_unc_sigma_doniach = doniach.params['sigma'].stderr / doniach.params['sigma'].value
+
 
         # ========== Gaussian ==========
-        chisqr_gaussian = mychisqr(gaussian.residual, data_x)
+        chisqr_gaussian = mychisqr(gaussian.residual, gaussian.best_fit)
         redchisqr_gaussian = chisqr_gaussian / gaussian.nfree
         center_gaussian = params_dict_gaussian['center']
         sigma_gaussian = params_dict_gaussian['sigma']
-        amplitude_gaussian = params_dict_gaussian['amplitude']
+
+        rel_unc_center_gaussian = gaussian.params['center'].stderr / gaussian.params['center'].value
+        rel_unc_sigma_gaussian = gaussian.params['sigma'].stderr / gaussian.params['sigma'].value
 
         # ========== Exponential Gaussian ==========
-        chisqr_exp_gaussian = mychisqr(exp_gaussian.residual, data_x)
+        chisqr_exp_gaussian = mychisqr(exp_gaussian.residual, exp_gaussian.best_fit)
         redchisqr_exp_gaussian = chisqr_exp_gaussian / exp_gaussian.nfree
         center_exp_gaussian = params_dict_exp_gaussian['center']
         sigma_exp_gaussian = params_dict_exp_gaussian['sigma']
-        amplitude_exp_gaussian = params_dict_exp_gaussian['amplitude']
+
+        rel_unc_center_exp_gaussian = exp_gaussian.params['center'].stderr / exp_gaussian.params['center'].value
+        rel_unc_sigma_exp_gaussian = exp_gaussian.params['sigma'].stderr / exp_gaussian.params['sigma'].value
 
         # ========== Voigt ==========
-        chisqr_voigt = mychisqr(voigt.residual, data_x)
+        chisqr_voigt = mychisqr(voigt.residual, voigt.best_fit)
         redchisqr_voigt = chisqr_voigt / voigt.nfree
         center_voigt = params_dict_voigt['center']
         sigma_voigt = params_dict_voigt['sigma']
-        amplitude_voigt = params_dict_voigt['amplitude']
+
+        rel_unc_center_voigt = voigt.params['center'].stderr / voigt.params['center'].value
+        rel_unc_sigma_voigt = voigt.params['sigma'].stderr / voigt.params['sigma'].value
 
 
         df_dict = {'fraction':[fraction],
                    'luminosity':[lumi_used],
                    'doniach chisqr':[chisqr_doniach],
-                       'doniach redchisqr':[redchisqr_doniach],
-                       'gaussian chisqr':[chisqr_gaussian],
-                       'gaussian redchisqr':[redchisqr_gaussian],
-                       'exponential gaussian chisqr':[chisqr_exp_gaussian],
-                       'exponential gaussian redchisqr':[redchisqr_exp_gaussian],
-                       'voigt chisqr':[chisqr_voigt],
-                       'voigt redchisqr':[redchisqr_voigt]}
+                   'doniach redchisqr':[redchisqr_doniach],
+                   'doniach center': [rel_unc_center_doniach],
+                   'doniach sigma': [rel_unc_sigma_doniach],
+                   'gaussian chisqr':[chisqr_gaussian],
+                   'gaussian redchisqr':[redchisqr_gaussian],
+                   'gaussian center': [rel_unc_center_gaussian],
+                   'gaussian sigma': [rel_unc_sigma_gaussian],
+                   'exponential gaussian chisqr':[chisqr_exp_gaussian],
+                   'exponential gaussian redchisqr':[redchisqr_exp_gaussian],
+                   'exponential gaussian center': [rel_unc_center_exp_gaussian],
+                   'exponential gaussian sigma': [rel_unc_sigma_exp_gaussian],
+                   'voigt chisqr':[chisqr_voigt],
+                   'voigt redchisqr':[redchisqr_voigt],
+                   'voigt center': [rel_unc_center_voigt],
+                   'voigt sigma': [rel_unc_sigma_voigt]}
 
         temp = pd.DataFrame(df_dict)
 
@@ -537,8 +557,8 @@ def plot_data(data):
         print("chi^2/dof = " + str(redchisqr_doniach))
         print("center = " + str(center_doniach))
         print("sigma = " + str(sigma_doniach))
-        print("amplitude = " + str(amplitude_doniach))
-        print("height = " + str(params_dict_doniach['height']))
+        print("Relative Uncertainty of Center = " + str(rel_unc_center_doniach))
+        print("Relative Uncertainty of Sigma = " + str(rel_unc_sigma_doniach))
 
         print("\n")
         print("=====================================================")
@@ -548,7 +568,8 @@ def plot_data(data):
         print("chi^2/dof = " + str(redchisqr_gaussian))
         print("center = " + str(center_gaussian))
         print("sigma = " + str(sigma_gaussian))
-        print("amplitude = " + str(amplitude_gaussian))
+        print("Relative Uncertainty of Center = " + str(rel_unc_center_gaussian))
+        print("Relative Uncertainty of Sigma = " + str(rel_unc_sigma_gaussian))
 
         print("\n")
         print("=====================================================")
@@ -558,7 +579,8 @@ def plot_data(data):
         print("chi^2/dof = " + str(redchisqr_exp_gaussian))
         print("center = " + str(center_exp_gaussian))
         print("sigma = " + str(sigma_exp_gaussian))
-        print("amplitude = " + str(amplitude_exp_gaussian))
+        print("Relative Uncertainty of Center = " + str(rel_unc_center_exp_gaussian))
+        print("Relative Uncertainty of Sigma = " + str(rel_unc_sigma_exp_gaussian))
 
         print("\n")
         print("=====================================================")
@@ -568,19 +590,132 @@ def plot_data(data):
         print("chi^2/dof = " + str(redchisqr_voigt))
         print("center = " + str(center_voigt))
         print("sigma = " + str(sigma_voigt))
-        print("amplitude = " + str(amplitude_voigt))
+        print("Relative Uncertainty of Center = " + str(rel_unc_center_voigt))
+        print("Relative Uncertainty of Sigma = " + str(rel_unc_sigma_voigt))
+
+        # ========= Plotting Residuals =========
+
+        # ========= Doniach Residuals =========
+
+        plt.clf()
+        plt.axes([0.1, 0.3, 0.85, 0.65])  # (left, bottom, width, height)
+        main_axes = plt.gca()
+
+        main_axes.set_title("Doniach Model Residuals")
+
+        main_axes.errorbar(x=bin_centres, y=doniach.residual, fmt='ko')
+
+        main_axes.set_xlim(left=h_xrange_min, right=bins[-1])
+        main_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
+        main_axes.tick_params(which='both', direction='in', top=True, labeltop=False, right=True,
+                              labelright=False)
+
+        main_axes.set_xlabel(r'$M_Z$ GeV')
+        main_axes.xaxis.get_major_ticks()[0].set_visible(False)
+
+        main_axes.set_ylim(bottom=1.05*doniach.residual.min(), top=1.05*doniach.residual.max())
+        main_axes.yaxis.set_minor_locator(AutoMinorLocator())
+        main_axes.yaxis.get_major_ticks()[0].set_visible(False)
+        main_axes.set_ylabel("Residual")
+
+        plt.savefig("plots/doniach_residuals.pdf", bbox_inches='tight')
+
+        # ========= Gaussian Residuals =========
+
+        plt.clf()
+        plt.axes([0.1, 0.3, 0.85, 0.65])  # (left, bottom, width, height)
+        main_axes = plt.gca()
+
+        main_axes.set_title("Gaussian Model Residuals")
+
+        main_axes.errorbar(x=bin_centres, y=gaussian.residual, fmt='ko')
+
+        main_axes.set_xlim(left=h_xrange_min, right=bins[-1])
+        main_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
+        main_axes.tick_params(which='both', direction='in', top=True, labeltop=False, right=True,
+                              labelright=False)
+
+        main_axes.set_xlabel(r'$M_Z$ GeV')
+        main_axes.xaxis.get_major_ticks()[0].set_visible(False)
+
+        main_axes.set_ylim(bottom=1.05*gaussian.residual.min(), top=1.05*gaussian.residual.max())
+        main_axes.yaxis.set_minor_locator(AutoMinorLocator())
+        main_axes.yaxis.get_major_ticks()[0].set_visible(False)
+        main_axes.set_ylabel("Residual")
+
+        plt.savefig("plots/gaussian_residuals.pdf", bbox_inches='tight')
+
+        # ========= Exponential Gaussian Residuals =========
+
+        plt.clf()
+        plt.axes([0.1, 0.3, 0.85, 0.65])  # (left, bottom, width, height)
+        main_axes = plt.gca()
+
+        main_axes.set_title("Exponential Gaussian Model Residuals")
+
+        main_axes.errorbar(x=bin_centres, y=exp_gaussian.residual, fmt='ko')
+
+        main_axes.set_xlim(left=h_xrange_min, right=bins[-1])
+        main_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
+        main_axes.tick_params(which='both', direction='in', top=True, labeltop=False, right=True,
+                              labelright=False)
+
+        main_axes.set_xlabel(r'$M_Z$ GeV')
+        main_axes.xaxis.get_major_ticks()[0].set_visible(False)
+
+        main_axes.set_ylim(bottom=1.05*exp_gaussian.residual.min(), top=1.05*exp_gaussian.residual.max())
+        main_axes.yaxis.set_minor_locator(AutoMinorLocator())
+        main_axes.yaxis.get_major_ticks()[0].set_visible(False)
+        main_axes.set_ylabel("Residual")
+
+        plt.savefig("plots/exp_gaussian_residuals.pdf", bbox_inches='tight')
+
+        # ========= Voigt Residuals =========
+
+        plt.clf()
+        plt.axes([0.1, 0.3, 0.85, 0.65])  # (left, bottom, width, height)
+        main_axes = plt.gca()
+
+        main_axes.set_title("Voigt Model Residuals")
+
+        main_axes.errorbar(x=bin_centres, y=voigt.residual, fmt='ko')
+
+        main_axes.set_xlim(left=h_xrange_min, right=bins[-1])
+        main_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
+        main_axes.tick_params(which='both', direction='in', top=True, labeltop=False, right=True,
+                              labelright=False)
+
+        main_axes.set_xlabel(r'$M_Z$ GeV')
+        main_axes.xaxis.get_major_ticks()[0].set_visible(False)
+
+        main_axes.set_ylim(bottom=1.05*voigt.residual.min(), top=1.05*voigt.residual.max())
+        main_axes.yaxis.set_minor_locator(AutoMinorLocator())
+        main_axes.yaxis.get_major_ticks()[0].set_visible(False)
+        main_axes.set_ylabel("Residual")
+
+        plt.savefig("plots/voigt_residuals.pdf", bbox_inches='tight')
+
+
 
     if load_histograms: return None, None
     return signal_x, mc_x_tot
 
 
 if __name__ == "__main__":
-    start = time.time()
-    if not load_histograms:
-        data = get_data_from_files()
-        signal_yields, background_yields = plot_data(data)
-    else:
-        plot_data(None)
-    elapsed = time.time() - start
-    print("Time taken: "+str(elapsed))
+
+    for i in list(range(1)):
+
+        fraction = (i+54)/1000
+        lumi_used = lumi * fraction
+
+        print("Analysing fraction of dataset = " + str(fraction))
+
+        start = time.time()
+        if not load_histograms:
+            data = get_data_from_files()
+            signal_yields, background_yields = plot_data(data)
+        else:
+            plot_data(None)
+        elapsed = time.time() - start
+        print("Time taken: "+str(elapsed))
 
