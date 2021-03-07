@@ -32,7 +32,7 @@ save_results = None # 'h5' or 'csv' or 'pickle' or None
 load_histograms = False
 store_histograms = False
 
-lumi = 10  # 10 fb-1 for data_A,B,C,D
+lumi = 10
 
 #fraction = 0.00083 # reduce this is you want the code to run quicker
 
