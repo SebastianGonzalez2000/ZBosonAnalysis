@@ -5,7 +5,7 @@ import time
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-from lmfit.models import PolynomialModel, GaussianModel, DoniachModel, ExponentialGaussianModel, VoigtModel
+from lmfit.models import PolynomialModel, GaussianModel, DoniachModel, LorentzianModel, VoigtModel
 import matplotlib.patches as mpatches  # for "Total SM & uncertainty" merged legend handle
 from matplotlib.lines import Line2D  # for dashed line in legend
 from matplotlib.ticker import MaxNLocator, AutoMinorLocator, LogLocator, LogFormatterSciNotation  # for minor ticks
@@ -335,16 +335,24 @@ def plot_data(data):
         params_dict_gaussian = gaussian.params.valuesdict()
 
 
-        exponential_gaussian_mod = ExponentialGaussianModel()
-        pars = exponential_gaussian_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=6000000*fraction, center = 90.5, sigma=2.9, gamma = 1)
-        exp_gaussian = exponential_gaussian_mod.fit(data_x_without_bkg, pars, x=bin_centres_array, weights=1 / data_x_errors)
-        params_dict_exp_gaussian = exp_gaussian.params.valuesdict()
+        lorentzian_mod = LorentzianModel()
+        pars = lorentzian_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=6000000*fraction, center = 90.5, sigma=2.9, gamma = 1)
+        lorentzian = lorentzian_mod.fit(data_x_without_bkg, pars, x=bin_centres_array, weights=1 / data_x_errors)
+        params_dict_lorentzian = lorentzian.params.valuesdict()
 
 
         voigt_mod = VoigtModel()
         pars = voigt_mod.guess(data_x_without_bkg, x=bin_centres_array, amplitude=6800000*fraction, center=90.5, sigma=1.7)
         voigt = voigt_mod.fit(data_x_without_bkg, pars, x=bin_centres_array, weights=1 / data_x_errors)
         params_dict_voigt = voigt.params.valuesdict()
+
+        voigt_mod_2 = VoigtModel()
+        polynomial = PolynomialModel(2)
+        pars = voigt_mod_2.guess(data_x_without_bkg, x=bin_centres_array, amplitude=6800000 * fraction, center=90.5, sigma=1.7)
+        pars += polynomial.guess(data_x_without_bkg, x=bin_centres_array, c0=data_x_without_bkg.max(), c1=0, c2=0)
+        voigt_poly_mod = voigt_mod_2 + polynomial
+        voigt_poly = voigt_poly_mod.fit(data_x_without_bkg, pars, x=bin_centres_array, weights=1 / data_x_errors)
+        params_dict_voigt_poly = voigt_poly.params.valuesdict()
 
         if store_histograms:
             # save all histograms in npz format. different file for each variable. bins are common
@@ -370,8 +378,9 @@ def plot_data(data):
 
         main_axes.plot(bin_centres, doniach.best_fit, '-r', label='Doniach')
         main_axes.plot(bin_centres, gaussian.best_fit, '-g', label='Gaussian')
-        main_axes.plot(bin_centres, exp_gaussian.best_fit, '-y', label='Exponential Gaussian')
+        main_axes.plot(bin_centres, lorentzian.best_fit, '-y', label='Lorentzian')
         main_axes.plot(bin_centres, voigt.best_fit, '--', label='Voigt')
+        main_axes.plot(bin_centres, voigt_poly.best_fit, '-v', label='Voigt and Polynomial')
 
         if Total_SM_label:
             totalSM_handle, = main_axes.step(bins, np.insert(mc_x_tot, 0, mc_x_tot[0]), color='black')
@@ -435,9 +444,10 @@ def plot_data(data):
         new_handles = [handles[labels.index('Data')],
                        handles[labels.index('Doniach')],
                        handles[labels.index('Gaussian')],
-                       handles[labels.index('Exponential Gaussian')],
-                       handles[labels.index('Voigt')]]
-        new_labels = ['Data', 'Doniach', 'Gaussian', 'Exponential Gaussian', 'Voigt']
+                       handles[labels.index('Lorentzian')],
+                       handles[labels.index('Voigt')],
+                       handles[labels.index('Voigt and Polynomial')]]
+        new_labels = ['Data', 'Doniach', 'Gaussian', 'Lorentzian', 'Voigt', 'Voigt and Polynomial']
         for s in reversed(stack_order):
             if s not in labels:
                 continue
@@ -503,14 +513,14 @@ def plot_data(data):
         rel_unc_center_gaussian = gaussian.params['center'].stderr / gaussian.params['center'].value
         rel_unc_sigma_gaussian = gaussian.params['sigma'].stderr / gaussian.params['sigma'].value
 
-        # ========== Exponential Gaussian ==========
-        chisqr_exp_gaussian = mychisqr(exp_gaussian.residual, exp_gaussian.best_fit)
-        redchisqr_exp_gaussian = chisqr_exp_gaussian / exp_gaussian.nfree
-        center_exp_gaussian = params_dict_exp_gaussian['center']
-        sigma_exp_gaussian = params_dict_exp_gaussian['sigma']
+        # ========== Lorentzian ==========
+        chisqr_lorentzian = mychisqr(lorentzian.residual, lorentzian.best_fit)
+        redchisqr_lorentzian = chisqr_lorentzian / lorentzian.nfree
+        center_lorentzian = params_dict_lorentzian['center']
+        sigma_lorentzian = params_dict_lorentzian['sigma']
 
-        rel_unc_center_exp_gaussian = exp_gaussian.params['center'].stderr / exp_gaussian.params['center'].value
-        rel_unc_sigma_exp_gaussian = exp_gaussian.params['sigma'].stderr / exp_gaussian.params['sigma'].value
+        rel_unc_center_lorentzian = lorentzian.params['center'].stderr / lorentzian.params['center'].value
+        rel_unc_sigma_lorentzian = lorentzian.params['sigma'].stderr / lorentzian.params['sigma'].value
 
         # ========== Voigt ==========
         chisqr_voigt = mychisqr(voigt.residual, voigt.best_fit)
@@ -520,6 +530,15 @@ def plot_data(data):
 
         rel_unc_center_voigt = voigt.params['center'].stderr / voigt.params['center'].value
         rel_unc_sigma_voigt = voigt.params['sigma'].stderr / voigt.params['sigma'].value
+
+        # ========== Voigt and Polynomial ==========
+        chisqr_voigt_poly = mychisqr(voigt_poly.residual, voigt_poly.best_fit)
+        redchisqr_voigt_poly = chisqr_voigt_poly / voigt_poly.nfree
+        center_voigt_poly = params_dict_voigt_poly['center']
+        sigma_voigt_poly = params_dict_voigt_poly['sigma']
+
+        rel_unc_center_voigt_poly = voigt_poly.params['center'].stderr / voigt_poly.params['center'].value
+        rel_unc_sigma_voigt_poly = voigt_poly.params['sigma'].stderr / voigt_poly.params['sigma'].value
 
 
         df_dict = {'fraction':[fraction],
@@ -532,14 +551,19 @@ def plot_data(data):
                    'gaussian redchisqr':[redchisqr_gaussian],
                    'gaussian center': [rel_unc_center_gaussian],
                    'gaussian sigma': [rel_unc_sigma_gaussian],
-                   'exponential gaussian chisqr':[chisqr_exp_gaussian],
-                   'exponential gaussian redchisqr':[redchisqr_exp_gaussian],
-                   'exponential gaussian center': [rel_unc_center_exp_gaussian],
-                   'exponential gaussian sigma': [rel_unc_sigma_exp_gaussian],
+                   'lorentzian chisqr':[chisqr_lorentzian],
+                   'lorentzian redchisqr':[redchisqr_lorentzian],
+                   'lorentzian center': [rel_unc_center_lorentzian],
+                   'lorentzian sigma': [rel_unc_sigma_lorentzian],
                    'voigt chisqr':[chisqr_voigt],
                    'voigt redchisqr':[redchisqr_voigt],
                    'voigt center': [rel_unc_center_voigt],
-                   'voigt sigma': [rel_unc_sigma_voigt]}
+                   'voigt sigma': [rel_unc_sigma_voigt],
+                   'voigt poly chisqr': [chisqr_voigt_poly],
+                   'voigt poly redchisqr': [redchisqr_voigt_poly],
+                   'voigt poly center': [rel_unc_center_voigt_poly],
+                   'voigt poly sigma': [rel_unc_sigma_voigt_poly]
+                   }
 
         temp = pd.DataFrame(df_dict)
 
@@ -573,14 +597,14 @@ def plot_data(data):
 
         print("\n")
         print("=====================================================")
-        print("Statistics for the Exponential Gaussian Model: ")
+        print("Statistics for the Lorentzian Model: ")
         print("\n")
-        print("chi^2 = " + str(chisqr_exp_gaussian))
-        print("chi^2/dof = " + str(redchisqr_exp_gaussian))
-        print("center = " + str(center_exp_gaussian))
-        print("sigma = " + str(sigma_exp_gaussian))
-        print("Relative Uncertainty of Center = " + str(rel_unc_center_exp_gaussian))
-        print("Relative Uncertainty of Sigma = " + str(rel_unc_sigma_exp_gaussian))
+        print("chi^2 = " + str(chisqr_lorentzian))
+        print("chi^2/dof = " + str(redchisqr_lorentzian))
+        print("center = " + str(center_lorentzian))
+        print("sigma = " + str(sigma_lorentzian))
+        print("Relative Uncertainty of Center = " + str(rel_unc_center_lorentzian))
+        print("Relative Uncertainty of Sigma = " + str(rel_unc_sigma_lorentzian))
 
         print("\n")
         print("=====================================================")
@@ -592,6 +616,17 @@ def plot_data(data):
         print("sigma = " + str(sigma_voigt))
         print("Relative Uncertainty of Center = " + str(rel_unc_center_voigt))
         print("Relative Uncertainty of Sigma = " + str(rel_unc_sigma_voigt))
+
+        print("\n")
+        print("=====================================================")
+        print("Statistics for the Voigt and Polynomial Model: ")
+        print("\n")
+        print("chi^2 = " + str(chisqr_voigt_poly))
+        print("chi^2/dof = " + str(redchisqr_voigt_poly))
+        print("center = " + str(center_voigt_poly))
+        print("sigma = " + str(sigma_voigt_poly))
+        print("Relative Uncertainty of Center = " + str(rel_unc_center_voigt_poly))
+        print("Relative Uncertainty of Sigma = " + str(rel_unc_sigma_voigt_poly))
 
         # ========= Plotting Residuals =========
 
@@ -645,15 +680,15 @@ def plot_data(data):
 
         plt.savefig("plots/gaussian_residuals.pdf", bbox_inches='tight')
 
-        # ========= Exponential Gaussian Residuals =========
+        # ========= Lorentzian Residuals =========
 
         plt.clf()
         plt.axes([0.1, 0.3, 0.85, 0.65])  # (left, bottom, width, height)
         main_axes = plt.gca()
 
-        main_axes.set_title("Exponential Gaussian Model Residuals")
+        main_axes.set_title("Lorentzian Model Residuals")
 
-        main_axes.errorbar(x=bin_centres, y=exp_gaussian.residual, fmt='ko')
+        main_axes.errorbar(x=bin_centres, y=lorentzian.residual, fmt='ko')
 
         main_axes.set_xlim(left=h_xrange_min, right=bins[-1])
         main_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
@@ -663,12 +698,12 @@ def plot_data(data):
         main_axes.set_xlabel(r'$M_Z$ GeV')
         main_axes.xaxis.get_major_ticks()[0].set_visible(False)
 
-        main_axes.set_ylim(bottom=1.05*exp_gaussian.residual.min(), top=1.05*exp_gaussian.residual.max())
+        main_axes.set_ylim(bottom=1.05*lorentzian.residual.min(), top=1.05*lorentzian.residual.max())
         main_axes.yaxis.set_minor_locator(AutoMinorLocator())
         main_axes.yaxis.get_major_ticks()[0].set_visible(False)
         main_axes.set_ylabel("Residual")
 
-        plt.savefig("plots/exp_gaussian_residuals.pdf", bbox_inches='tight')
+        plt.savefig("plots/lorentzian_residuals.pdf", bbox_inches='tight')
 
         # ========= Voigt Residuals =========
 
@@ -695,6 +730,31 @@ def plot_data(data):
 
         plt.savefig("plots/voigt_residuals.pdf", bbox_inches='tight')
 
+        # ========= Voigt and Polynomial Residuals =========
+
+        plt.clf()
+        plt.axes([0.1, 0.3, 0.85, 0.65])  # (left, bottom, width, height)
+        main_axes = plt.gca()
+
+        main_axes.set_title("Voigt and Polynomial Model Residuals")
+
+        main_axes.errorbar(x=bin_centres, y=voigt_poly.residual, fmt='ko')
+
+        main_axes.set_xlim(left=h_xrange_min, right=bins[-1])
+        main_axes.xaxis.set_minor_locator(AutoMinorLocator())  # separation of x axis minor ticks
+        main_axes.tick_params(which='both', direction='in', top=True, labeltop=False, right=True,
+                              labelright=False)
+
+        main_axes.set_xlabel(r'$M_Z$ GeV')
+        main_axes.xaxis.get_major_ticks()[0].set_visible(False)
+
+        main_axes.set_ylim(bottom=1.05 * voigt_poly.residual.min(), top=1.05 * voigt_poly.residual.max())
+        main_axes.yaxis.set_minor_locator(AutoMinorLocator())
+        main_axes.yaxis.get_major_ticks()[0].set_visible(False)
+        main_axes.set_ylabel("Residual")
+
+        plt.savefig("plots/voigt_poly_residuals.pdf", bbox_inches='tight')
+
 
 
     if load_histograms: return None, None
@@ -703,9 +763,9 @@ def plot_data(data):
 
 if __name__ == "__main__":
 
-    for i in list(range(1)):
+    for i in list(range(500)):
 
-        fraction = (i+54)/1000
+        fraction = (i+45)/10000
         lumi_used = lumi * fraction
 
         print("Analysing fraction of dataset = " + str(fraction))
